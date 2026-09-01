@@ -1,0 +1,498 @@
+import 'package:flutter/material.dart';
+import 'app_colors.dart';
+import 'questionnaire.dart';
+
+class SkinCareHomePage extends StatefulWidget {
+  final String userName;
+  final String profileImagePath;
+
+  const SkinCareHomePage({
+    super.key,
+    this.userName = 'Iryna!👋',
+    this.profileImagePath = 'assets/images/iryna.jpeg',
+  });
+
+  @override
+  State<SkinCareHomePage> createState() => _SkinCareHomePageState();
+}
+
+class _SkinCareHomePageState extends State<SkinCareHomePage> {
+  int _currentIndex = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.softPurple,
+      appBar: AppBar(
+        backgroundColor: AppColors.transparent,
+        elevation: 0,
+        centerTitle: true,
+        title: Image.asset(
+          'assets/images/logo.png',
+          height: 30,
+          errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
+        ),
+        leading: const Icon(Icons.menu, color: AppColors.terracotta),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16.0),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                const Icon(Icons.notifications_none, color: AppColors.terracotta, size: 28),
+                Positioned(
+                  top: 12,
+                  right: 4,
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: AppColors.brandPink,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Greeting and Profile
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          'Hello, ${widget.userName}👋',
+                          style: const TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.darkPurple,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        const Icon(Icons.auto_awesome, color: AppColors.terracotta, size: 24),
+                      ],
+                    ),
+                    const Text(
+                      'Ready to glow today?',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: AppColors.greyText,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+                CircleAvatar(
+                  radius: 30,
+                  backgroundColor: AppColors.lightPurple,
+                  child: ClipOval(
+                    child: Image.asset(
+                      widget.profileImagePath,
+                      fit: BoxFit.cover,
+                      width: 60,
+                      height: 60,
+                      errorBuilder: (context, error, stackTrace) => const Icon(
+                        Icons.person,
+                        color: AppColors.terracotta,
+                        size: 30,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 30),
+
+            // Skin Score Card
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [
+                    AppColors.lightPurple,
+                    AppColors.white,
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(30),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.terracotta.withOpacity(0.1),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Skin Score',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.darkPurple,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            TweenAnimationBuilder<double>(
+                              tween: Tween<double>(begin: 0, end: 78),
+                              duration: const Duration(seconds: 2),
+                              builder: (context, value, child) {
+                                return Text(
+                                  value.toInt().toString(),
+                                  style: const TextStyle(
+                                    fontSize: 40,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.terracotta,
+                                  ),
+                                );
+                              },
+                            ),
+                            const Padding(
+                              padding: EdgeInsets.only(bottom: 8.0),
+                              child: Text(
+                                ' / 100',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  color: AppColors.greyText,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const Text(
+                          'Good',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.greyText,
+                          ),
+                        ),
+                        const SizedBox(height: 15),
+                        // Horizontal Progress Bar
+                        Container(
+                          height: 8,
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: AppColors.softPurple,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: FractionallySizedBox(
+                            alignment: Alignment.centerLeft,
+                            widthFactor: 0.78,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [AppColors.terracotta, AppColors.brandPink],
+                                ),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 20),
+                  // Counter Circle
+                  Container(
+                    width: 100,
+                    height: 100,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: AppColors.lightPurple, width: 8),
+                    ),
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        SizedBox(
+                          width: 100,
+                          height: 100,
+                          child: TweenAnimationBuilder<double>(
+                            tween: Tween<double>(begin: 0, end: 0.78),
+                            duration: const Duration(seconds: 2),
+                            builder: (context, value, child) {
+                              return CircularProgressIndicator(
+                                value: value,
+                                strokeWidth: 8,
+                                backgroundColor: AppColors.transparent,
+                                valueColor: const AlwaysStoppedAnimation<Color>(AppColors.terracotta),
+                              );
+                            },
+                          ),
+                        ),
+                        TweenAnimationBuilder<double>(
+                          tween: Tween<double>(begin: 0, end: 78),
+                          duration: const Duration(seconds: 2),
+                          builder: (context, value, child) {
+                            return Text(
+                              '${value.toInt()}%',
+                              style: const TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.darkPurple,
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 30),
+
+            // Section: Your Skin Journey
+            const Text(
+              'Your Skin Journey',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: AppColors.darkPurple,
+              ),
+            ),
+            const SizedBox(height: 20),
+            GridView.count(
+              crossAxisCount: 2,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              mainAxisSpacing: 15,
+              crossAxisSpacing: 15,
+              childAspectRatio: 0.9,
+              children: [
+                _buildJourneyCard(
+                  title: 'Skin Analysis',
+                  subtitle: 'Analyze your skin with AI',
+                  icon: Icons.arrow_forward,
+                  color: AppColors.lightPurple,
+                  showBadge: true,
+                ),
+                _buildJourneyCard(
+                  title: 'Skin Progress',
+                  subtitle: 'Track your improvement',
+                  icon: Icons.bar_chart,
+                  color: AppColors.brandPink,
+                ),
+                _buildJourneyCard(
+                  title: 'Routine',
+                  subtitle: 'Personalized skincare routine',
+                  icon: Icons.calendar_today,
+                  color: AppColors.white,
+                  borderColor: AppColors.lightPurple,
+                ),
+                _buildJourneyCard(
+                  title: 'Chat with Dermatologist',
+                  subtitle: 'Get expert advice',
+                  icon: Icons.chat_bubble_outline,
+                  color: AppColors.terracotta,
+                ),
+              ],
+            ),
+            const SizedBox(height: 30),
+
+            // Daily Tip Card
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: AppColors.lightPurple,
+                borderRadius: BorderRadius.circular(30),
+                border: Border.all(color: AppColors.softPurple),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: const [
+                        Text(
+                          'Daily Tip',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.terracotta,
+                          ),
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          'Drink water, stay hydrated and your skin will thank you 💧',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: AppColors.darkPurple,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: Image.asset(
+                      'assets/images/tip_image.png',
+                      width: 80,
+                      height: 80,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => Container(
+                        width: 80,
+                        height: 80,
+                        color: AppColors.white,
+                        child: const Icon(Icons.local_drink, color: AppColors.terracotta, size: 40),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 30),
+          ],
+        ),
+      ),
+      bottomNavigationBar: Container(
+        decoration: const BoxDecoration(
+          color: AppColors.white,
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.lightPurple,
+              blurRadius: 10,
+              offset: Offset(0, -5),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildBottomNavItem(0, Icons.home, 'Home'),
+                _buildBottomNavItem(1, Icons.show_chart, 'Progress'),
+                _buildBottomNavItem(2, Icons.camera_alt, 'Scan'),
+                _buildBottomNavItem(3, Icons.chat_outlined, 'Chat'),
+                _buildBottomNavItem(4, Icons.person_outline, 'Profile'),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildJourneyCard({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Color color,
+    Color? borderColor,
+    bool showBadge = false,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: color.withOpacity(color == AppColors.white ? 1.0 : 0.2),
+        borderRadius: BorderRadius.circular(25),
+        border: borderColor != null ? Border.all(color: borderColor) : null,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (showBadge)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppColors.white,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Text(
+                'New',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.terracotta,
+                ),
+              ),
+            ),
+          const Spacer(),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              color: AppColors.darkPurple,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            subtitle,
+            style: const TextStyle(
+              fontSize: 10,
+              color: AppColors.greyText,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const Spacer(),
+          Align(
+            alignment: Alignment.bottomRight,
+            child: Icon(icon, color: AppColors.terracotta.withOpacity(0.6), size: 22),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBottomNavItem(int index, IconData icon, String label) {
+    bool isSelected = _currentIndex == index;
+    return GestureDetector(
+      onTap: () {
+        if (index == 2) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const QuestionnairePage()),
+          );
+        } else {
+          setState(() => _currentIndex = index);
+        }
+      },
+      behavior: HitTestBehavior.opaque,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            color: isSelected ? AppColors.terracotta : AppColors.greyText,
+            size: 26,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+              color: isSelected ? AppColors.terracotta : AppColors.greyText,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

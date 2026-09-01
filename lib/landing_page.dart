@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'app_colors.dart';
 import 'register.dart';
+import 'login.dart';
 
 class LandingPage extends StatefulWidget {
   const LandingPage({super.key});
@@ -55,8 +57,8 @@ class _LandingPageState extends State<LandingPage> with SingleTickerProviderStat
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Colors.transparent,
-                    Colors.black.withOpacity(0.6),
+                    AppColors.transparent,
+                    AppColors.black.withOpacity(0.6),
                   ],
                   stops: const [0.5, 1.0],
                 ),
@@ -78,7 +80,7 @@ class _LandingPageState extends State<LandingPage> with SingleTickerProviderStat
                       'DISCOVER WHAT YOUR\nSKIN NEEDS MOST',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: Colors.white,
+                        color: AppColors.white,
                         fontSize: 26,
                         fontWeight: FontWeight.bold,
                         letterSpacing: 1.5,
@@ -94,11 +96,11 @@ class _LandingPageState extends State<LandingPage> with SingleTickerProviderStat
                       );
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green.withOpacity(0.8),
-                      foregroundColor: Colors.white,
+                      backgroundColor: AppColors.brandPink,
+                      foregroundColor: AppColors.white,
                       padding: const EdgeInsets.symmetric(vertical: 18),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(15),
                       ),
                     ),
                     child: const Text(
@@ -110,6 +112,23 @@ class _LandingPageState extends State<LandingPage> with SingleTickerProviderStat
                     ),
                   ),
                   const SizedBox(height: 10),
+                  TextButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const LoginPage()),
+                      );
+                    },
+                    child: const Text(
+                      'ALREADY HAVE AN ACCOUNT? LOGIN',
+                      style: TextStyle(
+                        color: AppColors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
                 ],
               ),
             ),

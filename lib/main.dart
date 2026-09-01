@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'app_colors.dart';
 import 'landing_page.dart';
 
 void main() {
@@ -14,8 +15,12 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Dermaly',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor:Color(0xFFB16B4B)),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: AppColors.primaryPurple,
+          primary: AppColors.primaryPurple,
+        ),
         useMaterial3: true,
+        scaffoldBackgroundColor: AppColors.white,
       ),
       home: const LandingPage(),
     );

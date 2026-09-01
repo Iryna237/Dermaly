@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'app_colors.dart';
+import 'login.dart';
+import 'homepage.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -9,12 +12,19 @@ class RegisterPage extends StatefulWidget {
 
 class _RegisterPageState extends State<RegisterPage> {
   final _formKey = GlobalKey<FormState>();
+  final _nameController = TextEditingController();
   bool _obscurePassword = true;
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white,
       body: SingleChildScrollView(
         child: Column(
           children: [
@@ -39,32 +49,43 @@ class _RegisterPageState extends State<RegisterPage> {
                       style: TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.bold,
-                        color: Colors.black87,
+                        color: AppColors.black87,
                       ),
                     ),
                     const SizedBox(height: 5),
-                    Text(
+                    const Text(
                       'Sign up to get started!',
                       style: TextStyle(
                         fontSize: 16,
-                        color: Colors.grey[600],
+                        color: AppColors.greyText,
                       ),
                     ),
                     const SizedBox(height: 30),
                     
                     // Name Field
                     TextFormField(
+                      controller: _nameController,
                       decoration: InputDecoration(
                         labelText: 'Full Name',
-                        prefixIcon: Icon(Icons.person_outline,
-                            color: Color(0xFFB16B4B)),
+                        prefixIcon: const Icon(Icons.person_outline,
+                            color: AppColors.terracotta),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(15),
                         ),
-                        focusedBorder: OutlineInputBorder(
+                      ),
+                    ),
+                    const SizedBox(height: 20),
 
+                    TextFormField(
+                      decoration: InputDecoration(
+                        labelText: 'Enter your age',
+                        prefixIcon: const Icon(Icons.edit_calendar, color:
+                        AppColors.terracotta),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(15),
                         ),
                       ),
+                      keyboardType: TextInputType.emailAddress,
                     ),
                     const SizedBox(height: 20),
                     
@@ -72,14 +93,10 @@ class _RegisterPageState extends State<RegisterPage> {
                     TextFormField(
                       decoration: InputDecoration(
                         labelText: 'Email Address',
-                        prefixIcon: Icon(Icons.email_outlined, color:
-                         Color(0xFFB16B4B)),
+                        prefixIcon: const Icon(Icons.email_outlined, color:
+                         AppColors.terracotta),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(15),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(15),
-
                         ),
                       ),
                       keyboardType: TextInputType.emailAddress,
@@ -91,8 +108,8 @@ class _RegisterPageState extends State<RegisterPage> {
                       obscureText: _obscurePassword,
                       decoration: InputDecoration(
                         labelText: 'Password',
-                        prefixIcon: Icon(Icons.lock_outline, color:
-                        Color(0xFFB16B4B)),
+                        prefixIcon: const Icon(Icons.lock_outline, color:
+                        AppColors.terracotta),
                         suffixIcon: IconButton(
                           icon: Icon(
                             _obscurePassword ? Icons.visibility_off : Icons.visibility,
@@ -106,10 +123,6 @@ class _RegisterPageState extends State<RegisterPage> {
                         ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(15),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(15),
-
                         ),
                       ),
                     ),
@@ -118,8 +131,8 @@ class _RegisterPageState extends State<RegisterPage> {
                       obscureText: _obscurePassword,
                       decoration: InputDecoration(
                         labelText: 'Confirm Password',
-                        prefixIcon: Icon(Icons.lock_outline, color:
-                        Color(0xFFB16B4B)),
+                        prefixIcon: const Icon(Icons.lock_outline, color:
+                        AppColors.terracotta),
                         suffixIcon: IconButton(
                           icon: Icon(
                             _obscurePassword ? Icons.visibility_off : Icons.visibility,
@@ -134,11 +147,6 @@ class _RegisterPageState extends State<RegisterPage> {
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(15),
                         ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(15),
-
-                        ),
-
                       ),
                     ),
                     const SizedBox(height: 30),
@@ -150,12 +158,22 @@ class _RegisterPageState extends State<RegisterPage> {
                       child: ElevatedButton(
                         onPressed: () {
                           if (_formKey.currentState!.validate()) {
-                            // Implement registration logic
+                            Navigator.pushAndRemoveUntil(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => SkinCareHomePage(
+                                  userName: _nameController.text.isNotEmpty
+                                      ? _nameController.text.split(' ')[0]
+                                      : 'Iryna',
+                                ),
+                              ),
+                              (route) => false,
+                            );
                           }
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Color(0xFFDFA6A0),
-                          foregroundColor: Colors.white,
+                          backgroundColor: AppColors.brandPink,
+                          foregroundColor: AppColors.white,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(15),
                           ),
@@ -178,18 +196,21 @@ class _RegisterPageState extends State<RegisterPage> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(
+                        const Text(
                           "Already have an account? ",
-                          style: TextStyle(color: Colors.grey[700]),
+                          style: TextStyle(color: AppColors.greyText),
                         ),
                         TextButton(
                           onPressed: () {
-                            // Navigate to Login
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(builder: (context) => const LoginPage()),
+                            );
                           },
-                          child: Text(
+                          child: const Text(
                             'Login',
                             style: TextStyle(
-                              color: Color(0xFFB16B4B).withOpacity(0.8),
+                              color: AppColors.terracotta,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
