@@ -1,3 +1,5 @@
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
 import 'login.dart';
@@ -12,13 +14,55 @@ class RegisterPage extends StatefulWidget {
 
 class _RegisterPageState extends State<RegisterPage> {
   final _formKey = GlobalKey<FormState>();
+  final _emailController = TextEditingController();
   final _nameController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _isLoading = false;
 
   @override
   void dispose() {
     _nameController.dispose();
     super.dispose();
+  }
+
+  Future<void> Register() async{
+    setState(() {
+      _isLoading = !_isLoading;
+    });
+
+    try {
+
+    final credential = await FirebaseAuth.instance.createUserWithEmailAndPassword(email: _emailController.text.trim(), password: _passwordController.text.trim());
+
+    ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Registration successful"),backgroundColor: Colors.green,)
+    );
+
+    if (_formKey.currentState!.validate()) {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          builder: (context) => SkinCareHomePage(
+            userName: _nameController.text.isNotEmpty
+                ? _nameController.text.split(' ')[0]
+                : 'Iryna',
+          ),
+        ),
+            (route) => false,
+      );
+    }}
+    catch(e){
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Registration failed $e"),backgroundColor: Colors.red,)
+      );
+    }
+    finally{
+      setState(() {
+        _isLoading = !_isLoading;
+      });
+    }
   }
 
   @override
@@ -91,6 +135,7 @@ class _RegisterPageState extends State<RegisterPage> {
                     
                     // Email Field
                     TextFormField(
+                      controller: _emailController,
                       decoration: InputDecoration(
                         labelText: 'Email Address',
                         prefixIcon: const Icon(Icons.email_outlined, color:
@@ -105,6 +150,7 @@ class _RegisterPageState extends State<RegisterPage> {
                     
                     // Password Field
                     TextFormField(
+                      controller: _passwordController,
                       obscureText: _obscurePassword,
                       decoration: InputDecoration(
                         labelText: 'Password',
@@ -128,6 +174,7 @@ class _RegisterPageState extends State<RegisterPage> {
                     ),
                     const SizedBox(height: 20),
                     TextFormField(
+                      controller: _confirmPasswordController,
                       obscureText: _obscurePassword,
                       decoration: InputDecoration(
                         labelText: 'Confirm Password',
@@ -157,19 +204,8 @@ class _RegisterPageState extends State<RegisterPage> {
                       height: 55,
                       child: ElevatedButton(
                         onPressed: () {
-                          if (_formKey.currentState!.validate()) {
-                            Navigator.pushAndRemoveUntil(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => SkinCareHomePage(
-                                  userName: _nameController.text.isNotEmpty
-                                      ? _nameController.text.split(' ')[0]
-                                      : 'Iryna',
-                                ),
-                              ),
-                              (route) => false,
-                            );
-                          }
+                          if (!_isLoading)
+                            {Register();}
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.brandPink,
@@ -179,7 +215,7 @@ class _RegisterPageState extends State<RegisterPage> {
                           ),
                           elevation: 2,
                         ),
-                        child: const Text(
+                        child: _isLoading ? CircularProgressIndicator(color: AppColors.white,) : Text(
                           'REGISTER',
                           style: TextStyle(
                             fontSize: 18,

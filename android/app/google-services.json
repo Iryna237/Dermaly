@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "218878146050",
+    "project_id": "dermaly-65610",
+    "storage_bucket": "dermaly-65610.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:218878146050:android:b34ccd93109f537d80191b",
+        "android_client_info": {
+          "package_name": "com.example.ziskin"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCHqS8t5qiD5Y9PjD-Ll5sDNGrf461DORg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

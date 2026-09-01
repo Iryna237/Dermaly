@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
 import 'register.dart';
@@ -12,7 +13,46 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _isLoading = false;
+
+  Future<void> Login() async{
+    setState(() {
+      _isLoading = !_isLoading;
+    });
+
+    try {
+
+      await FirebaseAuth.instance.signInWithEmailAndPassword(email: _emailController.text.trim(), password: _passwordController.text.trim());
+
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Registration successful"),backgroundColor: Colors.green,)
+      );
+
+      if (_formKey.currentState!.validate()) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const SkinCareHomePage(),
+          ),
+              (route) => false,
+        );
+      }
+    }
+    catch(e){
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Login failed : $e"),backgroundColor: Colors.red,)
+      );
+    }
+    finally{
+      setState(() {
+        _isLoading = !_isLoading;
+      });
+    }
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -59,6 +99,7 @@ class _LoginPageState extends State<LoginPage> {
                   children: [
                     // Email Field
                     TextFormField(
+                      controller: _emailController,
                       decoration: InputDecoration(
                         labelText: 'Email Address',
                         prefixIcon: const Icon(Icons.email_outlined, color: primaryColor),
@@ -72,6 +113,7 @@ class _LoginPageState extends State<LoginPage> {
                     
                     // Password Field
                     TextFormField(
+                      controller: _passwordController,
                       obscureText: _obscurePassword,
                       decoration: InputDecoration(
                         labelText: 'Password',
@@ -110,15 +152,10 @@ class _LoginPageState extends State<LoginPage> {
                       height: 55,
                       child: ElevatedButton(
                         onPressed: () {
-                          if (_formKey.currentState!.validate()) {
-                            Navigator.pushAndRemoveUntil(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const SkinCareHomePage(),
-                              ),
-                              (route) => false,
-                            );
-                          }
+
+                          if (!_isLoading)
+                          {Login();}
+
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.brandPink,
@@ -128,7 +165,7 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                           elevation: 2,
                         ),
-                        child: const Text(
+                        child: _isLoading ? CircularProgressIndicator(color: AppColors.white,) : Text(
                           'LOGIN',
                           style: TextStyle(
                             fontSize: 18,
