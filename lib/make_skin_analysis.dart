@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
+import 'skin_analysis_progress.dart';
 
 class MakeSkinAnalysisPage extends StatefulWidget {
   const MakeSkinAnalysisPage({super.key});
@@ -37,12 +38,17 @@ class _MakeSkinAnalysisPageState extends State<MakeSkinAnalysisPage> with Single
       _isScanning = true;
     });
     // Simulate scan process
-    Future.delayed(const Duration(seconds: 5), () {
+    _scannerController.repeat(reverse: true);
+    Future.delayed(const Duration(seconds: 15), () {
       if (mounted) {
         setState(() {
           _isScanning = false;
         });
-        // Show completion or navigate to results
+        // Navigate immediately to progress page
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const SkinAnalysisProgressPage()),
+        );
       }
     });
   }
@@ -103,18 +109,18 @@ class _MakeSkinAnalysisPageState extends State<MakeSkinAnalysisPage> with Single
                     width: 280,
                     height: 400,
                     decoration: BoxDecoration(
-                      color: AppColors.black.withOpacity(0.2),
+                      color: AppColors.black.withAlpha(51), // 0.2 * 255
                       borderRadius: BorderRadius.circular(140),
-                      border: Border.all(color: AppColors.white.withOpacity(0.5), width: 1.5),
+                      border: Border.all(color: AppColors.white.withAlpha(128), width: 1.5),
                     ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(140),
                       child: Container(
                         decoration: BoxDecoration(
-                          color: AppColors.black.withOpacity(0.3),
+                          color: AppColors.black.withAlpha(77), // 0.3 * 255
                         ),
                         // Replace Icon with CameraPreview in real implementation
-                        child: Image.asset("assets/images/logo.png")
+                        child: Image.asset("assets/images/logo.png"),
                       ),
                     ),
                   ),
@@ -140,7 +146,7 @@ class _MakeSkinAnalysisPageState extends State<MakeSkinAnalysisPage> with Single
                               color: AppColors.terracotta,
                               boxShadow: [
                                 BoxShadow(
-                                  color: AppColors.terracotta.withOpacity(0.6),
+                                  color: AppColors.terracotta.withAlpha(153), // 0.6 * 255
                                   blurRadius: 15,
                                   spreadRadius: 3,
                                 ),
@@ -158,7 +164,7 @@ class _MakeSkinAnalysisPageState extends State<MakeSkinAnalysisPage> with Single
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                         decoration: BoxDecoration(
-                          color: AppColors.black.withOpacity(0.5),
+                          color: AppColors.black.withAlpha(128), // 0.5 * 255
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: const Text(
@@ -178,9 +184,9 @@ class _MakeSkinAnalysisPageState extends State<MakeSkinAnalysisPage> with Single
                 child: Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: AppColors.primaryPurple.withOpacity(0.30),
+                    color: AppColors.primaryPurple.withAlpha(77), // 0.3 * 255
                     borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: AppColors.primaryPurple.withOpacity(0.1)),
+                    border: Border.all(color: AppColors.primaryPurple.withAlpha(26)), // 0.1 * 255
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -248,7 +254,7 @@ class ScannerBracketsPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = AppColors.white.withOpacity(0.8)
+      ..color = AppColors.white.withAlpha(204) // 0.8 * 255
       ..strokeWidth = 3
       ..style = PaintingStyle.stroke;
 
@@ -264,7 +270,6 @@ class ScannerBracketsPainter extends CustomPainter {
 
     // Bottom-left
     canvas.drawLine(Offset(0, size.height), Offset(cornerSize, size.height), paint);
-    canvas.drawLine(Offset(0, size.height), Offset(0, size.height - cornerSize), paint);
 
     // Bottom-right
     canvas.drawLine(Offset(size.width, size.height), Offset(size.width - cornerSize, size.height), paint);

@@ -285,11 +285,11 @@ class _FeatureItem extends StatelessWidget {
           height: 64,
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.82),
+            color: Colors.white.withAlpha(209),
             borderRadius: BorderRadius.circular(14),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.07),
+                color: Colors.black.withAlpha(18),
                 blurRadius: 10,
                 offset: const Offset(0, 3),
               ),

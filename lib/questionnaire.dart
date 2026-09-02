@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:ziskin/homepage.dart';
 import 'app_colors.dart';
 import 'make_skin_analysis.dart';
 
@@ -46,14 +47,8 @@ class _QuestionnairePageState extends State<QuestionnairePage> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new, color: AppColors.darkPurple, size: 20),
           onPressed: () {
-            if (_currentPage > 0) {
-              _pageController.previousPage(
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeInOut,
-              );
-            } else {
-              Navigator.pop(context);
-            }
+
+              Navigator.push(context, MaterialPageRoute(builder: (context)=>SkinCareHomePage()));
           },
         ),
         title: Text(
@@ -229,7 +224,7 @@ class _QuestionnairePageState extends State<QuestionnairePage> {
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: AppColors.black.withOpacity(0.02),
+                          color: AppColors.black.withAlpha(5),
                           blurRadius: 10,
                           offset: const Offset(0, 4),
                         ),
@@ -256,14 +251,75 @@ class _QuestionnairePageState extends State<QuestionnairePage> {
               },
             ),
           ),
-          _buildNextButton("NEXT", () {
-            _pageController.nextPage(
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeInOut,
-            );
-          }),
+
+          Row(
+            children: [
+              Expanded(
+                flex: 1,
+                child: SizedBox(
+                  height: 60,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      _pageController.previousPage(
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeInOut,
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.terracotta,
+                      foregroundColor: AppColors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                    ),
+                    child: const Icon(Icons.arrow_back_ios, size: 30),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                flex: 3,
+                child: _buildNextButton("NEXT", () {
+                  _pageController.nextPage(
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                  );
+                }),
+              ),
+            ],
+          ),
           const SizedBox(height: 40),
         ],
+      ),
+    );
+  }
+
+  Widget _buildNextButton(String text, VoidCallback onPressed) {
+    return SizedBox(
+      height: 60,
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: onPressed,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.terracotta,
+          foregroundColor: AppColors.white,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(30),
+          ),
+        ),
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            text,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.2,
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -312,29 +368,4 @@ class _QuestionnairePageState extends State<QuestionnairePage> {
     );
   }
 
-  Widget _buildNextButton(String text, VoidCallback onPressed) {
-    return SizedBox(
-      width: double.infinity,
-      height: 60,
-      child: ElevatedButton(
-        onPressed: onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.terracotta,
-          foregroundColor: AppColors.white,
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(30),
-          ),
-        ),
-        child: Text(
-          text,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 1.2,
-          ),
-        ),
-      ),
-    );
-  }
 }

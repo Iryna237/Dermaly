@@ -58,7 +58,7 @@ class _LandingPageState extends State<LandingPage> with SingleTickerProviderStat
                   end: Alignment.bottomCenter,
                   colors: [
                     AppColors.transparent,
-                    AppColors.black.withOpacity(0.6),
+                    AppColors.black.withAlpha(153),
                   ],
                   stops: const [0.5, 1.0],
                 ),

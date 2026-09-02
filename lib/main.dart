@@ -50,7 +50,7 @@ class MyApp extends StatelessWidget {
           }
 
           if (snapshot.data == true) {
-            LandingPage();
+            return const LandingPage();
           }
 
           if (snapshot.hasError) {

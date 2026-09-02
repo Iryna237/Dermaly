@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
 import 'questionnaire.dart';
+import 'routine.dart';
 
 class SkinCareHomePage extends StatefulWidget {
   final String userName;
@@ -8,7 +9,7 @@ class SkinCareHomePage extends StatefulWidget {
 
   const SkinCareHomePage({
     super.key,
-    this.userName = 'Iryna!👋',
+    this.userName = 'Iryna',
     this.profileImagePath = 'assets/images/iryna.jpeg',
   });
 
@@ -129,7 +130,7 @@ class _SkinCareHomePageState extends State<SkinCareHomePage> {
                 borderRadius: BorderRadius.circular(30),
                 boxShadow: [
                   BoxShadow(
-                    color: AppColors.terracotta.withOpacity(0.1),
+                    color: AppColors.terracotta.withAlpha(26),
                     blurRadius: 20,
                     offset: const Offset(0, 10),
                   ),
@@ -287,6 +288,12 @@ class _SkinCareHomePageState extends State<SkinCareHomePage> {
                   icon: Icons.arrow_forward,
                   color: AppColors.lightPurple,
                   showBadge: true,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const QuestionnairePage()),
+                    );
+                  },
                 ),
                 _buildJourneyCard(
                   title: 'Skin Progress',
@@ -300,6 +307,12 @@ class _SkinCareHomePageState extends State<SkinCareHomePage> {
                   icon: Icons.calendar_today,
                   color: AppColors.white,
                   borderColor: AppColors.lightPurple,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const RoutinePage()),
+                    );
+                  },
                 ),
                 _buildJourneyCard(
                   title: 'Chat with Dermatologist',
@@ -405,57 +418,61 @@ class _SkinCareHomePageState extends State<SkinCareHomePage> {
     required Color color,
     Color? borderColor,
     bool showBadge = false,
+    VoidCallback? onTap,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        color: color.withOpacity(color == AppColors.white ? 1.0 : 0.2),
-        borderRadius: BorderRadius.circular(25),
-        border: borderColor != null ? Border.all(color: borderColor) : null,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (showBadge)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: AppColors.white,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Text(
-                'New',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.terracotta,
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(15),
+        decoration: BoxDecoration(
+          color: color == AppColors.white ? color : color.withAlpha(51),
+          borderRadius: BorderRadius.circular(25),
+          border: borderColor != null ? Border.all(color: borderColor) : null,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (showBadge)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.white,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Text(
+                  'New',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.terracotta,
+                  ),
                 ),
               ),
+            const Spacer(),
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+                color: AppColors.darkPurple,
+              ),
             ),
-          const Spacer(),
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.bold,
-              color: AppColors.darkPurple,
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              style: const TextStyle(
+                fontSize: 10,
+                color: AppColors.greyText,
+                fontWeight: FontWeight.w600,
+              ),
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            subtitle,
-            style: const TextStyle(
-              fontSize: 10,
-              color: AppColors.greyText,
-              fontWeight: FontWeight.w600,
+            const Spacer(),
+            Align(
+              alignment: Alignment.bottomRight,
+              child: Icon(icon, color: AppColors.terracotta.withAlpha(153), size: 22),
             ),
-          ),
-          const Spacer(),
-          Align(
-            alignment: Alignment.bottomRight,
-            child: Icon(icon, color: AppColors.terracotta.withOpacity(0.6), size: 22),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
