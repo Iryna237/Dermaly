@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:ziskin/register.dart';
+import 'package:ziskin/pages/auth/register.dart';
 import 'package:ziskin/splash_screen.dart';
 import 'app_colors.dart';
 import 'landing_page.dart';

@@ -14,19 +14,30 @@ class _QuestionnairePageState extends State<QuestionnairePage> {
   final PageController _pageController = PageController();
   int _currentPage = 0;
 
-  // State for answers (simplified for this UI example)
+  // State for answers
   final Map<int, List<String>> _answers = {};
+
+  // Pour suivre les questions déjà répondues
+  final Set<int> _answeredQuestions = {};
 
   void _onOptionSelected(int questionIndex, String option, bool multiple) {
     setState(() {
       if (!multiple) {
         _answers[questionIndex] = [option];
+        // Marquer comme répondue
+        _answeredQuestions.add(questionIndex);
       } else {
         final current = _answers[questionIndex] ?? [];
         if (current.contains(option)) {
           current.remove(option);
+          // Si plus aucune option sélectionnée, retirer des répondues
+          if (current.isEmpty) {
+            _answeredQuestions.remove(questionIndex);
+          }
         } else {
           current.add(option);
+          // Marquer comme répondue
+          _answeredQuestions.add(questionIndex);
         }
         _answers[questionIndex] = current;
       }
@@ -35,6 +46,88 @@ class _QuestionnairePageState extends State<QuestionnairePage> {
 
   bool _isOptionSelected(int questionIndex, String option) {
     return _answers[questionIndex]?.contains(option) ?? false;
+  }
+
+  // Vérifier si une question a été répondue
+  bool _isQuestionAnswered(int questionIndex) {
+    // Pour les questions de l'intro (0) et outro (12), toujours true
+    if (questionIndex == 0 || questionIndex == 12) return true;
+
+    // Vérifier si la question a été répondue
+    final answer = _answers[questionIndex];
+    return answer != null && answer.isNotEmpty;
+  }
+
+  // Vérifier si toutes les questions ont été répondues
+  bool _areAllQuestionsAnswered() {
+    // Liste des indices des questions (1 à 11)
+    for (int i = 1; i <= 11; i++) {
+      if (!_isQuestionAnswered(i)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  // Gérer la navigation vers la page suivante
+  void _goToNextPage() {
+    // Pour la page d'intro (page 0)
+    if (_currentPage == 0) {
+      _pageController.nextPage(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+      return;
+    }
+
+    // Pour les questions (pages 1 à 11)
+    if (_currentPage >= 1 && _currentPage <= 11) {
+      if (!_isQuestionAnswered(_currentPage)) {
+        // Afficher un message d'erreur
+        _showErrorSnackBar('Veuillez sélectionner une réponse avant de continuer');
+        return;
+      }
+
+      _pageController.nextPage(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+      return;
+    }
+
+    // Pour la page de fin (page 12)
+    if (_currentPage == 12) {
+      // Vérifier que toutes les questions ont été répondues
+      if (!_areAllQuestionsAnswered()) {
+        _showErrorSnackBar('Veuillez répondre à toutes les questions');
+        return;
+      }
+
+      // Naviguer vers l'analyse
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const MakeSkinAnalysisPage()),
+      );
+    }
+  }
+
+  // Afficher un message d'erreur
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: const TextStyle(color: Colors.white),
+        ),
+        backgroundColor: Colors.red.shade700,
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
   }
 
   @override
@@ -47,8 +140,15 @@ class _QuestionnairePageState extends State<QuestionnairePage> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new, color: AppColors.darkPurple, size: 20),
           onPressed: () {
-
-              Navigator.push(context, MaterialPageRoute(builder: (context)=>SkinCareHomePage()));
+            // Vérifier si on peut revenir en arrière
+            if (_currentPage > 0) {
+              _pageController.previousPage(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOut,
+              );
+            } else {
+              Navigator.push(context, MaterialPageRoute(builder: (context) => const SkinCareHomePage()));
+            }
           },
         ),
         title: Text(
@@ -147,7 +247,6 @@ class _QuestionnairePageState extends State<QuestionnairePage> {
         children: [
           Container(
             padding: const EdgeInsets.all(20),
-
             child: Image.asset("assets/images/logo.png"),
           ),
           const SizedBox(height: 40),
@@ -171,12 +270,7 @@ class _QuestionnairePageState extends State<QuestionnairePage> {
             ),
           ),
           const Spacer(),
-          _buildNextButton("START ASSESSMENT", () {
-            _pageController.nextPage(
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeInOut,
-            );
-          }),
+          _buildNextButton("START ASSESSMENT", _goToNextPage),
           const SizedBox(height: 50),
         ],
       ),
@@ -184,26 +278,40 @@ class _QuestionnairePageState extends State<QuestionnairePage> {
   }
 
   Widget _buildQuestionPage(int index, String question, List<String> options, {required bool multiple}) {
+    final isAnswered = _isQuestionAnswered(index);
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SizedBox(height: 20),
-          Text(
-            '$index. $question',
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: AppColors.darkPurple,
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '$index. $question',
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.darkPurple,
+                  ),
+                ),
+              ),
+              if (isAnswered)
+                const Icon(
+                  Icons.check_circle,
+                  color: Colors.green,
+                  size: 24,
+                ),
+            ],
           ),
           const SizedBox(height: 10),
           Text(
             multiple ? 'You can select multiple answers' : 'Select one answer',
             style: const TextStyle(color: AppColors.greyText, fontSize: 14),
           ),
-          const SizedBox(height: 30),
+          const SizedBox(height: 20),
           Expanded(
             child: ListView.builder(
               itemCount: options.length,
@@ -251,7 +359,6 @@ class _QuestionnairePageState extends State<QuestionnairePage> {
               },
             ),
           ),
-
           Row(
             children: [
               Expanded(
@@ -260,10 +367,12 @@ class _QuestionnairePageState extends State<QuestionnairePage> {
                   height: 60,
                   child: ElevatedButton(
                     onPressed: () {
-                      _pageController.previousPage(
-                        duration: const Duration(milliseconds: 300),
-                        curve: Curves.easeInOut,
-                      );
+                      if (_currentPage > 0) {
+                        _pageController.previousPage(
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeInOut,
+                        );
+                      }
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.terracotta,
@@ -280,12 +389,7 @@ class _QuestionnairePageState extends State<QuestionnairePage> {
               const SizedBox(width: 16),
               Expanded(
                 flex: 3,
-                child: _buildNextButton("NEXT", () {
-                  _pageController.nextPage(
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeInOut,
-                  );
-                }),
+                child: _buildNextButton("NEXT", _goToNextPage),
               ),
             ],
           ),
@@ -302,8 +406,8 @@ class _QuestionnairePageState extends State<QuestionnairePage> {
       child: ElevatedButton(
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.terracotta,
-          foregroundColor: AppColors.white,
+          backgroundColor: _isQuestionAnswered(_currentPage) ? AppColors.terracotta: Colors.grey.shade500,
+          foregroundColor: _isQuestionAnswered(_currentPage) ? AppColors.white:Colors.white70,
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(30),
@@ -325,6 +429,8 @@ class _QuestionnairePageState extends State<QuestionnairePage> {
   }
 
   Widget _buildOutroPage() {
+    final allAnswered = _areAllQuestionsAnswered();
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 30.0),
       child: Column(
@@ -332,7 +438,6 @@ class _QuestionnairePageState extends State<QuestionnairePage> {
         children: [
           Container(
             padding: const EdgeInsets.all(20),
-
             child: Image.asset("assets/images/logo.png"),
           ),
           const SizedBox(height: 40),
@@ -346,26 +451,45 @@ class _QuestionnairePageState extends State<QuestionnairePage> {
             ),
           ),
           const SizedBox(height: 20),
-          const Text(
-            "Now let's analyze your skin",
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 18,
-              color: AppColors.greyText,
+          if (!allAnswered)
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.red.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.warning_amber_rounded, color: Colors.red.shade700),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      '⚠️ Please answer all questions before proceeding',
+                      style: TextStyle(
+                        color: Colors.red.shade700,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            const Text(
+              "Now let's analyze your skin",
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 18,
+                color: AppColors.greyText,
+              ),
             ),
-          ),
           const Spacer(),
-          _buildNextButton("START SKIN ANALYSIS", () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const MakeSkinAnalysisPage()),
-            );
-          }),
+          _buildNextButton("START SKIN ANALYSIS", _goToNextPage),
           const SizedBox(height: 50),
-
         ],
       ),
     );
   }
-
 }

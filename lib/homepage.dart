@@ -63,7 +63,6 @@ class _SkinCareHomePageState extends State<SkinCareHomePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Greeting and Profile
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -381,33 +380,6 @@ class _SkinCareHomePageState extends State<SkinCareHomePage> {
           ],
         ),
       ),
-      bottomNavigationBar: Container(
-        decoration: const BoxDecoration(
-          color: AppColors.white,
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.lightPurple,
-              blurRadius: 10,
-              offset: Offset(0, -5),
-            ),
-          ],
-        ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildBottomNavItem(0, Icons.home, 'Home'),
-                _buildBottomNavItem(1, Icons.show_chart, 'Progress'),
-                _buildBottomNavItem(2, Icons.camera_alt, 'Scan'),
-                _buildBottomNavItem(3, Icons.chat_outlined, 'Chat'),
-                _buildBottomNavItem(4, Icons.person_outline, 'Profile'),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 
@@ -477,39 +449,4 @@ class _SkinCareHomePageState extends State<SkinCareHomePage> {
     );
   }
 
-  Widget _buildBottomNavItem(int index, IconData icon, String label) {
-    bool isSelected = _currentIndex == index;
-    return GestureDetector(
-      onTap: () {
-        if (index == 2) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const QuestionnairePage()),
-          );
-        } else {
-          setState(() => _currentIndex = index);
-        }
-      },
-      behavior: HitTestBehavior.opaque,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            icon,
-            color: isSelected ? AppColors.terracotta : AppColors.greyText,
-            size: 26,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-              color: isSelected ? AppColors.terracotta : AppColors.greyText,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }

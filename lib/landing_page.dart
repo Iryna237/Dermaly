@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:ziskin/pages/auth/register.dart';
 import 'app_colors.dart';
-import 'register.dart';
-import 'login.dart';
+import 'pages/auth/login.dart';
 
 class LandingPage extends StatefulWidget {
   const LandingPage({super.key});
@@ -112,19 +112,26 @@ class _LandingPageState extends State<LandingPage> with SingleTickerProviderStat
                     ),
                   ),
                   const SizedBox(height: 10),
-                  TextButton(
+                  ElevatedButton(
                     onPressed: () {
                       Navigator.push(
                         context,
                         MaterialPageRoute(builder: (context) => const LoginPage()),
                       );
                     },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.transparent,
+                      foregroundColor: AppColors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 18),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15),
+                      ),side: BorderSide(color: AppColors.primary)
+                    ),
                     child: const Text(
-                      'ALREADY HAVE AN ACCOUNT? LOGIN',
+                      'ALREADY HAVE AN ACCOUNT',
                       style: TextStyle(
-                        color: AppColors.white,
+                        fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        fontSize: 14,
                       ),
                     ),
                   ),

@@ -1,8 +1,10 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'app_colors.dart';
-import 'register.dart';
-import 'homepage.dart';
+import 'package:ziskin/pages/auth/register.dart';
+import 'package:ziskin/screen_manage.dart';
+
+import '../../app_colors.dart';
+import '../../homepage.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -15,49 +17,160 @@ class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+
   bool _obscurePassword = true;
   bool _isLoading = false;
 
-  Future<void> Login() async{
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  // Méthode de connexion
+  Future<void> _login() async {
+    // 1. Valider le formulaire localement
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
     setState(() {
-      _isLoading = !_isLoading;
+      _isLoading = true;
     });
 
     try {
-
-      await FirebaseAuth.instance.signInWithEmailAndPassword(email: _emailController.text.trim(), password: _passwordController.text.trim());
-
-      ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Registration successful"),backgroundColor: Colors.green,)
+      // 2. Connexion avec Firebase Auth
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
       );
 
-      if (_formKey.currentState!.validate()) {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const SkinCareHomePage(),
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Connexion réussie !"),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const ScreenManage(),
+        ),
+            (route) => false,
+      );
+    } on FirebaseAuthException catch (e) {
+      String errorMessage = "Échec de la connexion.";
+
+      if (e.code == 'user-not-found' || e.code == 'wrong-password' || e.code == 'invalid-credential') {
+        errorMessage = "Email ou mot de passe incorrect.";
+      } else if (e.code == 'invalid-email') {
+        errorMessage = "Format d'email invalide.";
+      } else if (e.code == 'user-disabled') {
+        errorMessage = "Ce compte utilisateur a été désactivé.";
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Colors.red,
           ),
-              (route) => false,
         );
       }
-    }
-    catch(e){
-      ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Login failed : $e"),backgroundColor: Colors.red,)
-      );
-    }
-    finally{
-      setState(() {
-        _isLoading = !_isLoading;
-      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Erreur : ${e.toString()}"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
+  // Dialogue de réinitialisation de mot de passe
+  Future<void> _showForgotPasswordDialog() async {
+    final resetEmailController = TextEditingController(text: _emailController.text.trim());
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("Mot de passe oublié ?"),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text("Entrez votre adresse email pour recevoir un lien de réinitialisation."),
+              const SizedBox(height: 15),
+              TextField(
+                controller: resetEmailController,
+                keyboardType: TextInputType.emailAddress,
+                decoration: const InputDecoration(
+                  labelText: "Email",
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Annuler"),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final email = resetEmailController.text.trim();
+                if (email.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Veuillez entrer une adresse email")),
+                  );
+                  return;
+                }
+
+                try {
+                  await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text("Email de réinitialisation envoyé !"),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text("Erreur : ${e.toString()}"),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                }
+              },
+              child: const Text("Envoyer"),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    const primaryColor = AppColors.terracotta; 
-    const buttonColor = AppColors.brandPink; 
+    const primaryColor = AppColors.terracotta;
 
     return Scaffold(
       backgroundColor: AppColors.white,
@@ -65,6 +178,7 @@ class _LoginPageState extends State<LoginPage> {
         child: Column(
           children: [
             const SizedBox(height: 60),
+
             // Logo
             SizedBox(
               width: 200,
@@ -72,15 +186,16 @@ class _LoginPageState extends State<LoginPage> {
               child: Image.asset("assets/images/logo.png"),
             ),
             const SizedBox(height: 20),
-                    // Welcome Text
-                    const Text(
-                      'Welcome back 👋',
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.black87,
-                      ),
-                    ),
+
+            // Welcome Text
+            const Text(
+              'Welcome back 👋',
+              style: TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                color: AppColors.black87,
+              ),
+            ),
             const SizedBox(height: 8),
             Text(
               'Login to continue your skin journey',
@@ -90,7 +205,7 @@ class _LoginPageState extends State<LoginPage> {
               ),
             ),
             const SizedBox(height: 40),
-            
+
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 30.0),
               child: Form(
@@ -100,6 +215,7 @@ class _LoginPageState extends State<LoginPage> {
                     // Email Field
                     TextFormField(
                       controller: _emailController,
+                      keyboardType: TextInputType.emailAddress,
                       decoration: InputDecoration(
                         labelText: 'Email Address',
                         prefixIcon: const Icon(Icons.email_outlined, color: primaryColor),
@@ -107,10 +223,19 @@ class _LoginPageState extends State<LoginPage> {
                           borderRadius: BorderRadius.circular(15),
                         ),
                       ),
-                      keyboardType: TextInputType.emailAddress,
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Veuillez entrer votre email';
+                        }
+                        final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+                        if (!emailRegex.hasMatch(value.trim())) {
+                          return 'Veuillez entrer un email valide';
+                        }
+                        return null;
+                      },
                     ),
                     const SizedBox(height: 20),
-                    
+
                     // Password Field
                     TextFormField(
                       controller: _passwordController,
@@ -129,15 +254,22 @@ class _LoginPageState extends State<LoginPage> {
                           borderRadius: BorderRadius.circular(15),
                         ),
                       ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Veuillez entrer votre mot de passe';
+                        }
+                        if (value.length < 6) {
+                          return 'Le mot de passe doit contenir au moins 6 caractères';
+                        }
+                        return null;
+                      },
                     ),
-                    
+
                     // Forgot Password
                     Align(
                       alignment: Alignment.centerRight,
                       child: TextButton(
-                        onPressed: () {
-                          // Implement forgot password logic
-                        },
+                        onPressed: _showForgotPasswordDialog,
                         child: const Text(
                           'Forgot Password?',
                           style: TextStyle(color: primaryColor, fontWeight: FontWeight.w600),
@@ -145,18 +277,13 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                     ),
                     const SizedBox(height: 20),
-                    
+
                     // Login Button
                     SizedBox(
                       width: double.infinity,
                       height: 55,
                       child: ElevatedButton(
-                        onPressed: () {
-
-                          if (!_isLoading)
-                          {Login();}
-
-                        },
+                        onPressed: _isLoading ? null : _login,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.brandPink,
                           foregroundColor: AppColors.white,
@@ -165,7 +292,9 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                           elevation: 2,
                         ),
-                        child: _isLoading ? CircularProgressIndicator(color: AppColors.white,) : Text(
+                        child: _isLoading
+                            ? const CircularProgressIndicator(color: AppColors.white)
+                            : const Text(
                           'LOGIN',
                           style: TextStyle(
                             fontSize: 18,
@@ -176,7 +305,7 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                     ),
                     const SizedBox(height: 40),
-                    
+
                     // Social Logins
                     Row(
                       children: [
@@ -192,13 +321,13 @@ class _LoginPageState extends State<LoginPage> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
-                        _buildSocialIcon(Icons.g_mobiledata, Colors.red),
-                        _buildSocialIcon(Icons.apple, Colors.black),
-                        _buildSocialIcon(Icons.facebook, Colors.blue),
+                        _buildSocialIcon("assets/platform/Symbol.png"),
+                        _buildSocialIcon("assets/platform/Logo.png"),
+                        _buildSocialIcon("assets/platform/Symbol(1).png"),
                       ],
                     ),
                     const SizedBox(height: 40),
-                    
+
                     // Register Redirect
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -232,14 +361,14 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  Widget _buildSocialIcon(IconData icon, Color color) {
+  Widget _buildSocialIcon(String image) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
         border: Border.all(color: Colors.grey[300]!),
-        borderRadius: BorderRadius.circular(15),
+        borderRadius: BorderRadius.circular(12),
       ),
-      child: Icon(icon, color: color, size: 30),
+      child: Image.asset(image,width: 30,height: 30,),
     );
   }
 }

@@ -1,4 +1,6 @@
+import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'app_colors.dart';
 import 'skin_analysis_progress.dart';
 
@@ -9,27 +11,81 @@ class MakeSkinAnalysisPage extends StatefulWidget {
   State<MakeSkinAnalysisPage> createState() => _MakeSkinAnalysisPageState();
 }
 
-class _MakeSkinAnalysisPageState extends State<MakeSkinAnalysisPage> with SingleTickerProviderStateMixin {
+class _MakeSkinAnalysisPageState extends State<MakeSkinAnalysisPage> with WidgetsBindingObserver {
   late AnimationController _scannerController;
   late Animation<double> _scannerAnimation;
   bool _isScanning = false;
+  CameraController? _cameraController;
+  List<CameraDescription>? _cameras;
+  int _selectedCameraIndex = 0;
+  FlashMode _flashMode = FlashMode.off;
+
+
+
 
   @override
   void initState() {
     super.initState();
-    _scannerController = AnimationController(
+    WidgetsBinding.instance.addObserver(this);
+    _initCamera();
+
+    /*_scannerController = AnimationController(
       duration: const Duration(seconds: 2),
       vsync: this,
     )..repeat(reverse: true);
 
     _scannerAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _scannerController, curve: Curves.easeInOut),
-    );
+    );*/
   }
+
+  void _switchCamera() {
+    if (_cameras == null || _cameras!.length < 2) return;
+    _selectedCameraIndex = (_selectedCameraIndex + 1) % _cameras!.length;
+    _initCameraController(_cameras![_selectedCameraIndex]);
+  }
+
+  Future<void> _initCamera() async {
+    final cameraPermission = await Permission.camera.request();
+    if (cameraPermission != PermissionStatus.granted) {
+      return;
+    }
+
+    final cameras = await availableCameras();
+    if (cameras.isEmpty) return;
+    _cameras = cameras;
+    _selectedCameraIndex = 0;
+    _initCameraController(cameras[_selectedCameraIndex]);
+  }
+
+  void _initCameraController(CameraDescription cameraDescription) {
+    if (_cameraController != null) {
+      _cameraController?.dispose();
+    }
+    _cameraController = CameraController(
+      cameraDescription,
+      //ResolutionPreset.ultraHigh,
+      ResolutionPreset.high,
+      enableAudio: false,
+      imageFormatGroup: ImageFormatGroup.jpeg,
+    );
+    _cameraController
+        ?.initialize()
+        .then((_) {
+      if (!mounted) return;
+      _cameraController?.setFlashMode(_flashMode);
+      setState(() {});
+    })
+        .catchError((e) {
+      debugPrint('Erreur caméra: $e');
+    });
+  }
+
 
   @override
   void dispose() {
     _scannerController.dispose();
+    _cameraController!.dispose();
     super.dispose();
   }
 
@@ -72,7 +128,7 @@ class _MakeSkinAnalysisPageState extends State<MakeSkinAnalysisPage> with Single
             children: [
               // Header
               Padding(
-                padding: const EdgeInsets.all(16.0),
+                padding: const EdgeInsets.all(8),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -92,46 +148,48 @@ class _MakeSkinAnalysisPageState extends State<MakeSkinAnalysisPage> with Single
                   ],
                 ),
               ),
-              
+
               const Text(
                 'Position your face within the frame',
                 style: TextStyle(color: AppColors.white, fontSize: 14),
               ),
-              
+
               const Spacer(),
-              
+
               // Scanner UI
               Stack(
                 alignment: Alignment.center,
                 children: [
-                  // Oval Frame (Camera Placeholder)
                   Container(
-                    width: 280,
-                    height: 400,
+                    //width: 400,
+                    height: 420,
                     decoration: BoxDecoration(
                       color: AppColors.black.withAlpha(51), // 0.2 * 255
-                      borderRadius: BorderRadius.circular(140),
+                      //borderRadius: BorderRadius.circular(40),
                       border: Border.all(color: AppColors.white.withAlpha(128), width: 1.5),
                     ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(140),
-                      child: Container(
+                    child: (_cameraController != null &&
+                        _cameraController!
+                            .value
+                            .isInitialized)
+                        ? CameraPreview(_cameraController!,child: Container(
+                      //width: 400,
+                        height: 600,
                         decoration: BoxDecoration(
-                          color: AppColors.black.withAlpha(77), // 0.3 * 255
-                        ),
-                        // Replace Icon with CameraPreview in real implementation
-                        child: Image.asset("assets/images/logo.png"),
-                      ),
-                    ),
+                          color: AppColors.black.withAlpha(51),
+                          //borderRadius: BorderRadius.circular(40),
+                          border: Border.all(color: AppColors.white.withAlpha(128), width: 1.5),
+                        ),),) : Image.asset("assets/images/logo.png")
                   ),
-                  
+
                   // Scanning Brackets
                   const SizedBox(
                     width: 310,
                     height: 430,
                     child: CustomPaint(painter: ScannerBracketsPainter()),
                   ),
-                  
+                  IconButton(onPressed: _switchCamera, icon: Icon(Icons.cameraswitch)),
+
                   // Moving Scan Line
                   if (_isScanning)
                     AnimatedBuilder(
@@ -156,7 +214,7 @@ class _MakeSkinAnalysisPageState extends State<MakeSkinAnalysisPage> with Single
                         );
                       },
                     ),
-                    
+
                   // "Face ID" style status text
                   if (_isScanning)
                     Positioned(
@@ -180,12 +238,12 @@ class _MakeSkinAnalysisPageState extends State<MakeSkinAnalysisPage> with Single
 
               // Instructions Icons
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 30),
+                padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Container(
-                  padding: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                   decoration: BoxDecoration(
                     color: AppColors.primaryPurple.withAlpha(77), // 0.3 * 255
-                    borderRadius: BorderRadius.circular(24),
+                    borderRadius: BorderRadius.circular(14),
                     border: Border.all(color: AppColors.primaryPurple.withAlpha(26)), // 0.1 * 255
                   ),
                   child: Row(
@@ -198,9 +256,9 @@ class _MakeSkinAnalysisPageState extends State<MakeSkinAnalysisPage> with Single
                   ),
                 ),
               ),
-              
-              const SizedBox(height: 40),
-              
+
+              const SizedBox(height: 20),
+
               // Scan Button
               GestureDetector(
                 onTap: _isScanning ? null : _startScanning,
@@ -225,8 +283,8 @@ class _MakeSkinAnalysisPageState extends State<MakeSkinAnalysisPage> with Single
                   ),
                 ),
               ),
-              
-              const SizedBox(height: 50),
+
+              const SizedBox(height: 20),
             ],
           ),
         ),
@@ -237,11 +295,11 @@ class _MakeSkinAnalysisPageState extends State<MakeSkinAnalysisPage> with Single
   Widget _buildInfoIcon(IconData icon, String text) {
     return Column(
       children: [
-        Icon(icon, color: AppColors.white, size: 26),
-        const SizedBox(height: 8),
+        Icon(icon, color: AppColors.white, size: 20),
+        const SizedBox(height: 4),
         Text(
           text,
-          style: const TextStyle(color: AppColors.white, fontSize: 16, fontWeight: FontWeight.w600),
+          style: const TextStyle(color: AppColors.white, fontSize: 13, fontWeight: FontWeight.w600),
         ),
       ],
     );
