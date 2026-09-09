@@ -165,21 +165,24 @@ class _MakeSkinAnalysisPageState extends State<MakeSkinAnalysisPage> with Widget
                     height: 420,
                     decoration: BoxDecoration(
                       color: AppColors.black.withAlpha(51), // 0.2 * 255
-                      //borderRadius: BorderRadius.circular(40),
+                      borderRadius: BorderRadius.circular(40),
                       border: Border.all(color: AppColors.white.withAlpha(128), width: 1.5),
                     ),
                     child: (_cameraController != null &&
                         _cameraController!
                             .value
                             .isInitialized)
-                        ? CameraPreview(_cameraController!,child: Container(
-                      //width: 400,
-                        height: 600,
-                        decoration: BoxDecoration(
-                          color: AppColors.black.withAlpha(51),
-                          //borderRadius: BorderRadius.circular(40),
-                          border: Border.all(color: AppColors.white.withAlpha(128), width: 1.5),
-                        ),),) : Image.asset("assets/images/logo.png")
+                        ? CameraPreview(_cameraController!) : Image.asset("assets/images/logo.png"),
+                  ),
+
+                  Container(
+                    //width: 400,
+                    height: 420,
+                    decoration: BoxDecoration(
+                      color: AppColors.black.withAlpha(51), // 0.2 * 255
+                      borderRadius: BorderRadius.circular(40),
+                      border: Border.all(color: AppColors.white.withAlpha(128), width: 1.5),
+                    ),
                   ),
 
                   // Scanning Brackets

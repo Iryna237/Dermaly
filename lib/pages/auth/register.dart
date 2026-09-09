@@ -3,7 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../app_colors.dart';
-import '../../homepage.dart';
+import '../../screen_manage.dart';
 import 'login.dart';
 
 class RegisterPage extends StatefulWidget {
@@ -77,13 +77,13 @@ class _RegisterPageState extends State<RegisterPage> {
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(
-            builder: (context) => SkinCareHomePage(
+            builder: (context) => ScreenManage(
               userName: _nameController.text.trim().isNotEmpty
                   ? _nameController.text.trim().split(' ')[0]
                   : 'Utilisateur',
             ),
           ),
-              (route) => false,
+          (route) => false,
         );
       }
     } on FirebaseAuthException catch (e) {

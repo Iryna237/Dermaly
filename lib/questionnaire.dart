@@ -141,14 +141,14 @@ class _QuestionnairePageState extends State<QuestionnairePage> {
           icon: const Icon(Icons.arrow_back_ios_new, color: AppColors.darkPurple, size: 20),
           onPressed: () {
             // Vérifier si on peut revenir en arrière
-            if (_currentPage > 0) {
+           /* if (_currentPage > 0) {
               _pageController.previousPage(
                 duration: const Duration(milliseconds: 300),
                 curve: Curves.easeInOut,
               );
-            } else {
+            } else {*/
               Navigator.push(context, MaterialPageRoute(builder: (context) => const SkinCareHomePage()));
-            }
+            //}
           },
         ),
         title: Text(

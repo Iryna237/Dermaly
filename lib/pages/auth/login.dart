@@ -1,10 +1,10 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:ziskin/pages/auth/register.dart';
 import 'package:ziskin/screen_manage.dart';
 
 import '../../app_colors.dart';
-import '../../homepage.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -41,10 +41,40 @@ class _LoginPageState extends State<LoginPage> {
 
     try {
       // 2. Connexion avec Firebase Auth
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
+      final userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
+
+      if (!mounted) return;
+
+      final user = userCredential.user;
+      String userName = '';
+
+      if (user != null) {
+        if (user.displayName != null && user.displayName!.trim().isNotEmpty) {
+          userName = user.displayName!.trim().split(' ')[0];
+        } else {
+          try {
+            final userDoc = await FirebaseFirestore.instance
+                .collection('users')
+                .doc(user.uid)
+                .get();
+            if (userDoc.exists && userDoc.data() != null) {
+              final fullName = (userDoc.data()?['fullName'] ?? '').toString().trim();
+              if (fullName.isNotEmpty) {
+                userName = fullName.split(' ')[0];
+              }
+            }
+          } catch (e) {
+            debugPrint("Erreur lors de la récupération du profil utilisateur: $e");
+          }
+        }
+      }
+
+      if (userName.isEmpty && user?.email != null && user!.email!.isNotEmpty) {
+        userName = user.email!.split('@')[0];
+      }
 
       if (!mounted) return;
 
@@ -58,7 +88,7 @@ class _LoginPageState extends State<LoginPage> {
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(
-          builder: (context) => const ScreenManage(),
+          builder: (context) => ScreenManage(userName: userName.isNotEmpty ? userName : null),
         ),
             (route) => false,
       );

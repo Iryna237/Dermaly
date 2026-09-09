@@ -1,15 +1,17 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
 import 'questionnaire.dart';
 import 'routine.dart';
 
 class SkinCareHomePage extends StatefulWidget {
-  final String userName;
+  final String? userName;
   final String profileImagePath;
 
   const SkinCareHomePage({
     super.key,
-    this.userName = 'Iryna',
+    this.userName,
     this.profileImagePath = 'assets/images/iryna.jpeg',
   });
 
@@ -18,7 +20,62 @@ class SkinCareHomePage extends StatefulWidget {
 }
 
 class _SkinCareHomePageState extends State<SkinCareHomePage> {
-  int _currentIndex = 0;
+  String _displayName = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _initUserName();
+  }
+
+  @override
+  void didUpdateWidget(covariant SkinCareHomePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.userName != widget.userName) {
+      _initUserName();
+    }
+  }
+
+  void _initUserName() {
+    if (widget.userName != null && widget.userName!.trim().isNotEmpty) {
+      _displayName = widget.userName!.trim();
+      return;
+    }
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      if (user.displayName != null && user.displayName!.trim().isNotEmpty) {
+        _displayName = user.displayName!.trim().split(' ')[0];
+      } else if (user.email != null && user.email!.trim().isNotEmpty) {
+        _displayName = user.email!.trim().split('@')[0];
+      } else {
+        _displayName = 'Utilisateur';
+      }
+      _fetchNameFromFirestore(user.uid);
+    } else {
+      _displayName = 'Utilisateur';
+    }
+  }
+
+  Future<void> _fetchNameFromFirestore(String uid) async {
+    try {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      if (doc.exists && doc.data() != null) {
+        final data = doc.data()!;
+        final fullName = (data['fullName'] ?? data['name'] ?? '').toString().trim();
+        if (fullName.isNotEmpty) {
+          final firstName = fullName.split(' ')[0];
+          if (mounted && _displayName != firstName) {
+            setState(() {
+              _displayName = firstName;
+            });
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Erreur récupération nom utilisateur: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -66,33 +123,39 @@ class _SkinCareHomePageState extends State<SkinCareHomePage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          'Hello, ${widget.userName}👋',
-                          style: const TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.darkPurple,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              'Hello, ${_displayName.isNotEmpty ? _displayName : 'Utilisateur'}👋',
+                              style: const TextStyle(
+                                fontSize: 28,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.darkPurple,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        const Icon(Icons.auto_awesome, color: AppColors.terracotta, size: 24),
-                      ],
-                    ),
-                    const Text(
-                      'Ready to glow today?',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: AppColors.greyText,
-                        fontWeight: FontWeight.w500,
+                          const SizedBox(width: 8),
+                          const Icon(Icons.auto_awesome, color: AppColors.terracotta, size: 24),
+                        ],
                       ),
-                    ),
-                  ],
+                      const Text(
+                        'Ready to glow today?',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: AppColors.greyText,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
+                const SizedBox(width: 16),
                 CircleAvatar(
                   radius: 30,
                   backgroundColor: AppColors.lightPurple,

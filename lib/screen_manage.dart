@@ -5,46 +5,49 @@ import 'package:ziskin/make_skin_analysis.dart';
 import 'package:ziskin/questionnaire.dart';
 
 class ScreenManage extends StatefulWidget {
-  const ScreenManage({super.key});
+  final String? userName;
+
+  const ScreenManage({super.key, this.userName});
 
   @override
   State<ScreenManage> createState() => _ScreenManageState();
 }
-int _currentIndex = 0;
-final List<Widget> _pages = [
-  SkinCareHomePage(),
-  QuestionnairePage(),
-  MakeSkinAnalysisPage(),
-  SkinCareHomePage(),
-  SkinCareHomePage(),
-];
 
 class _ScreenManageState extends State<ScreenManage> {
+  int _currentIndex = 0;
+
   @override
   Widget build(BuildContext context) {
+    final List<Widget> pages = [
+      SkinCareHomePage(userName: widget.userName),
+      const QuestionnairePage(),
+      const MakeSkinAnalysisPage(),
+      SkinCareHomePage(userName: widget.userName),
+      SkinCareHomePage(userName: widget.userName),
+    ];
+
     return Scaffold(
-
-      body: _pages[_currentIndex],
-
+      body: pages[_currentIndex],
       bottomNavigationBar: BottomNavigationBar(
-        onTap: (page){
+        onTap: (page) {
           setState(() {
             _currentIndex = page;
           });
         },
         currentIndex: _currentIndex,
-          selectedItemColor: AppColors.terracotta,
-          unselectedItemColor: AppColors.greyText,
-          unselectedLabelStyle: TextStyle(color: AppColors.greyText ),
-          showUnselectedLabels: true,
-          items: [
-        BottomNavigationBarItem(icon: Icon(Icons.home,),label: "Home"),
-        BottomNavigationBarItem(icon: Icon(Icons.show_chart,),label: "Progress"),
-        BottomNavigationBarItem(icon: Icon(Icons.camera_alt,),label: "Scan"),
-        BottomNavigationBarItem(icon: Icon(Icons.chat,),label: "Chat"),
-        BottomNavigationBarItem(icon: Icon(Icons.person_outline_rounded,),label: "Profile"),
-      ]),
-
+        type: BottomNavigationBarType.fixed,
+        selectedItemColor: AppColors.terracotta,
+        unselectedItemColor: AppColors.greyText,
+        unselectedLabelStyle: const TextStyle(color: AppColors.greyText),
+        showUnselectedLabels: true,
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
+          BottomNavigationBarItem(icon: Icon(Icons.show_chart), label: "Progress"),
+          BottomNavigationBarItem(icon: Icon(Icons.camera_alt), label: "Scan"),
+          BottomNavigationBarItem(icon: Icon(Icons.chat), label: "Chat"),
+          BottomNavigationBarItem(icon: Icon(Icons.person_outline_rounded), label: "Profile"),
+        ],
+      ),
     );
   }
 }
