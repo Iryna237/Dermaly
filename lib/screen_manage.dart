@@ -4,6 +4,8 @@ import 'package:ziskin/homepage.dart';
 import 'package:ziskin/make_skin_analysis.dart';
 import 'package:ziskin/questionnaire.dart';
 
+import 'package:ziskin/pages/profile_page.dart';
+
 class ScreenManage extends StatefulWidget {
   final String? userName;
 
@@ -19,11 +21,18 @@ class _ScreenManageState extends State<ScreenManage> {
   @override
   Widget build(BuildContext context) {
     final List<Widget> pages = [
-      SkinCareHomePage(userName: widget.userName),
+      SkinCareHomePage(
+        userName: widget.userName,
+        onProfileTap: () {
+          setState(() {
+            _currentIndex = 4;
+          });
+        },
+      ),
       const QuestionnairePage(),
       const MakeSkinAnalysisPage(),
       SkinCareHomePage(userName: widget.userName),
-      SkinCareHomePage(userName: widget.userName),
+      const ProfilePage(),
     ];
 
     return Scaffold(

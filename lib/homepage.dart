@@ -2,17 +2,20 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
+import 'pages/profile_page.dart';
 import 'questionnaire.dart';
 import 'routine.dart';
 
 class SkinCareHomePage extends StatefulWidget {
   final String? userName;
   final String profileImagePath;
+  final VoidCallback? onProfileTap;
 
   const SkinCareHomePage({
     super.key,
     this.userName,
     this.profileImagePath = 'assets/images/iryna.jpeg',
+    this.onProfileTap,
   });
 
   @override
@@ -90,7 +93,19 @@ class _SkinCareHomePageState extends State<SkinCareHomePage> {
           height: 30,
           errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
         ),
-        leading: const Icon(Icons.menu, color: AppColors.terracotta),
+        leading: IconButton(
+          icon: const Icon(Icons.menu, color: AppColors.terracotta),
+          onPressed: () {
+            if (widget.onProfileTap != null) {
+              widget.onProfileTap!();
+            } else {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const ProfilePage()),
+              );
+            }
+          },
+        ),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 16.0),
@@ -156,19 +171,31 @@ class _SkinCareHomePageState extends State<SkinCareHomePage> {
                   ),
                 ),
                 const SizedBox(width: 16),
-                CircleAvatar(
-                  radius: 30,
-                  backgroundColor: AppColors.lightPurple,
-                  child: ClipOval(
-                    child: Image.asset(
-                      widget.profileImagePath,
-                      fit: BoxFit.cover,
-                      width: 60,
-                      height: 60,
-                      errorBuilder: (context, error, stackTrace) => const Icon(
-                        Icons.person,
-                        color: AppColors.terracotta,
-                        size: 30,
+                GestureDetector(
+                  onTap: () {
+                    if (widget.onProfileTap != null) {
+                      widget.onProfileTap!();
+                    } else {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const ProfilePage()),
+                      );
+                    }
+                  },
+                  child: CircleAvatar(
+                    radius: 30,
+                    backgroundColor: AppColors.lightPurple,
+                    child: ClipOval(
+                      child: Image.asset(
+                        widget.profileImagePath,
+                        fit: BoxFit.cover,
+                        width: 60,
+                        height: 60,
+                        errorBuilder: (context, error, stackTrace) => const Icon(
+                          Icons.person,
+                          color: AppColors.terracotta,
+                          size: 30,
+                        ),
                       ),
                     ),
                   ),

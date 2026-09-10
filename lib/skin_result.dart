@@ -1,5 +1,8 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
+import 'routine.dart';
+import 'services/gemini_service.dart';
 
 class SkinResultPage extends StatelessWidget {
   final String imagePath;
@@ -10,23 +13,29 @@ class SkinResultPage extends StatelessWidget {
   final String skinTypeDetails;
   final String recommendationSummary;
 
-  SkinResultPage({
+  const SkinResultPage({
     super.key,
-    this.imagePath = 'assets/images/logo.png',
-    this.overallScore = 78,
-    this.hydrationLevel = 68,
-    this.skinType = 'Combination Skin',
-    this.skinTypeDetails = 'Oily in T-zone, normal on cheeks',
-    this.recommendationSummary = 'Your skin is generating more oil in the T-zone. Focus on balancing, hydration and gentle care.',
-    Map<String, int>? concerns,
-  }) : concerns = concerns ?? {
-          'Dark Spots': 72,
-          'Acne': 45,
-          'Redness': 20,
-          'Pores': 60,
-          'Texture / Unevenness': 55,
-          'Fine Lines': 15,
-        };
+    required this.imagePath,
+    required this.overallScore,
+    required this.hydrationLevel,
+    required this.skinType,
+    required this.skinTypeDetails,
+    required this.concerns,
+    required this.recommendationSummary,
+  });
+
+  // Constructeur depuis le résultat de l'analyse Gemini
+  factory SkinResultPage.fromResult(SkinAnalysisResult result) {
+    return SkinResultPage(
+      imagePath: result.imagePath,
+      overallScore: result.overallScore,
+      hydrationLevel: result.hydrationLevel,
+      skinType: result.skinType,
+      skinTypeDetails: result.skinTypeDetails,
+      concerns: result.concerns,
+      recommendationSummary: result.recommendationSummary,
+    );
+  }
 
   String _getFormattedDate() {
     final now = DateTime.now();
@@ -43,6 +52,25 @@ class SkinResultPage extends StatelessWidget {
     final amPm = now.hour >= 12 ? 'PM' : 'AM';
     final minute = now.minute.toString().padLeft(2, '0');
     return '$hour:$minute $amPm';
+  }
+
+  String _getScoreRating() {
+    if (overallScore >= 80) return 'Excellent ';
+    if (overallScore >= 65) return 'Good ';
+    if (overallScore >= 50) return 'Fair ';
+    return 'Needs Care ';
+  }
+
+  Color _getScoreRatingColor() {
+    if (overallScore >= 80) return Colors.green;
+    if (overallScore >= 65) return Colors.orangeAccent;
+    return AppColors.terracotta;
+  }
+
+  String _getHydrationDescription() {
+    if (hydrationLevel >= 75) return 'Your skin is well hydrated and moisturized.';
+    if (hydrationLevel >= 55) return 'Your skin has balanced hydration.';
+    return 'Your skin is slightly dehydrated. Focus on hydrating serums.';
   }
 
   @override
@@ -93,24 +121,29 @@ class SkinResultPage extends StatelessWidget {
               ),
               const SizedBox(height: 25),
 
-              // Image and Overall Score Row
+              // Photo et Score Global
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Profile Image
-                  Container(
-                    width: 150,
-                    height: 180,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(20),
-                      image: DecorationImage(
-                        image: AssetImage(imagePath),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: SizedBox(
+                      width: 140,
+                      height: 180,
+                      child: imagePath.startsWith('assets/')
+                          ? Image.asset(
+                        imagePath,
                         fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
+                      )
+                          : Image.file(
+                        File(imagePath),
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 20),
-                  // Overall Score Circle
+                  const SizedBox(width: 15),
                   Expanded(
                     child: Container(
                       height: 180,
@@ -122,8 +155,8 @@ class SkinResultPage extends StatelessWidget {
                         alignment: Alignment.center,
                         children: [
                           SizedBox(
-                            width: 140,
-                            height: 140,
+                            width: 130,
+                            height: 130,
                             child: CircularProgressIndicator(
                               value: overallScore / 100,
                               strokeWidth: 10,
@@ -147,24 +180,24 @@ class SkinResultPage extends StatelessWidget {
                               Text(
                                 '$overallScore%',
                                 style: const TextStyle(
-                                  fontSize: 28,
+                                  fontSize: 26,
                                   fontWeight: FontWeight.bold,
                                   color: AppColors.black,
                                 ),
                               ),
                               const SizedBox(height: 2),
-                              const Row(
+                              Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Text(
-                                    'Good ',
+                                    _getScoreRating(),
                                     style: TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.bold,
-                                      color: Colors.orangeAccent,
+                                      color: _getScoreRatingColor(),
                                     ),
                                   ),
-                                  Icon(Icons.auto_awesome, color: Colors.orangeAccent, size: 14),
+                                  Icon(Icons.auto_awesome, color: _getScoreRatingColor(), size: 14),
                                 ],
                               ),
                             ],
@@ -177,7 +210,7 @@ class SkinResultPage extends StatelessWidget {
               ),
               const SizedBox(height: 25),
 
-              // Skin Type Card
+              // Type de Peau
               _buildResultCard(
                 icon: Icons.opacity,
                 iconColor: AppColors.primaryPurple,
@@ -199,7 +232,7 @@ class SkinResultPage extends StatelessWidget {
               ),
               const SizedBox(height: 15),
 
-              // Skin Concerns Card
+              // Préoccupations
               _buildResultCard(
                 icon: Icons.spa,
                 iconColor: AppColors.brandPink,
@@ -212,7 +245,7 @@ class SkinResultPage extends StatelessWidget {
               ),
               const SizedBox(height: 15),
 
-              // Hydration Level Card
+              // Niveau d'Hydratation
               _buildResultCard(
                 icon: Icons.water_drop,
                 iconColor: Colors.blue,
@@ -240,16 +273,16 @@ class SkinResultPage extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 12),
-                    const Text(
-                      'Your skin is slightly dehydrated.',
-                      style: TextStyle(color: AppColors.greyText, fontSize: 14),
+                    Text(
+                      _getHydrationDescription(),
+                      style: const TextStyle(color: AppColors.greyText, fontSize: 14),
                     ),
                   ],
                 ),
               ),
               const SizedBox(height: 15),
 
-              // Recommendation Summary Box
+              // Recommandation
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(20),
@@ -277,12 +310,17 @@ class SkinResultPage extends StatelessWidget {
               ),
               const SizedBox(height: 30),
 
-              // Bottom Button
+              // Bouton d'action
               SizedBox(
                 width: double.infinity,
                 height: 60,
                 child: ElevatedButton(
-                  onPressed: () {},
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const RoutinePage()),
+                    );
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primaryPurple,
                     foregroundColor: AppColors.white,
@@ -312,7 +350,26 @@ class SkinResultPage extends StatelessWidget {
     );
   }
 
-  Widget _buildResultCard({required IconData icon, required Color iconColor, required String title, required Widget child}) {
+  Widget _buildPlaceholder() {
+    return Container(
+      color: AppColors.softPurple,
+      child: const Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.person, size: 50, color: AppColors.primaryPurple),
+          SizedBox(height: 5),
+          Text('No Image', style: TextStyle(fontSize: 12, color: AppColors.greyText)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildResultCard({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required Widget child,
+  }) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
