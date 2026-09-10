@@ -18,7 +18,7 @@ class _MakeSkinAnalysisPageState extends State<MakeSkinAnalysisPage> with Widget
   CameraController? _cameraController;
   List<CameraDescription>? _cameras;
   int _selectedCameraIndex = 0;
-  FlashMode _flashMode = FlashMode.off;
+  final FlashMode _flashMode = FlashMode.off;
 
 
 

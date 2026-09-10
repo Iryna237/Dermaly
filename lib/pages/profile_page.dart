@@ -1,8 +1,6 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:ziskin/pages/auth/login.dart';
 import '../app_colors.dart';
-import '../auth_gate.dart';
 import '../services/auth_service.dart';
 
 class ProfilePage extends StatefulWidget {
