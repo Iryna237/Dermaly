@@ -67,7 +67,7 @@ class _LoginPageState extends State<LoginPage> {
               }
             }
           } catch (e) {
-            debugPrint("Erreur lors de la récupération du profil utilisateur: $e");
+            debugPrint("Error retrieving the user profil: $e");
           }
         }
       }
@@ -80,7 +80,7 @@ class _LoginPageState extends State<LoginPage> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("Connexion réussie !"),
+          content: Text("Connexion successful !"),
           backgroundColor: Colors.green,
         ),
       );
@@ -93,14 +93,14 @@ class _LoginPageState extends State<LoginPage> {
             (route) => false,
       );
     } on FirebaseAuthException catch (e) {
-      String errorMessage = "Échec de la connexion.";
+      String errorMessage = "Connexion failed.";
 
       if (e.code == 'user-not-found' || e.code == 'wrong-password' || e.code == 'invalid-credential') {
-        errorMessage = "Email ou mot de passe incorrect.";
+        errorMessage = "Incorrect email or password.";
       } else if (e.code == 'invalid-email') {
         errorMessage = "Format d'email invalide.";
       } else if (e.code == 'user-disabled') {
-        errorMessage = "Ce compte utilisateur a été désactivé.";
+        errorMessage = "This user account has been disabled.";
       }
 
       if (mounted) {
@@ -115,7 +115,7 @@ class _LoginPageState extends State<LoginPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("Erreur : ${e.toString()}"),
+            content: Text("Error : ${e.toString()}"),
             backgroundColor: Colors.red,
           ),
         );
@@ -137,11 +137,11 @@ class _LoginPageState extends State<LoginPage> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text("Mot de passe oublié ?"),
+          title: const Text("Forgot password ?"),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text("Entrez votre adresse email pour recevoir un lien de réinitialisation."),
+              const Text("Enter your email address to receive a password reset link."),
               const SizedBox(height: 15),
               TextField(
                 controller: resetEmailController,
@@ -156,14 +156,14 @@ class _LoginPageState extends State<LoginPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text("Annuler"),
+              child: const Text("Cancel"),
             ),
             ElevatedButton(
               onPressed: () async {
                 final email = resetEmailController.text.trim();
                 if (email.isEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Veuillez entrer une adresse email")),
+                    const SnackBar(content: Text("Enter you email address")),
                   );
                   return;
                 }
@@ -174,7 +174,7 @@ class _LoginPageState extends State<LoginPage> {
                     Navigator.pop(context);
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
-                        content: Text("Email de réinitialisation envoyé !"),
+                        content: Text("Password reset email sent !"),
                         backgroundColor: Colors.green,
                       ),
                     );
@@ -183,14 +183,14 @@ class _LoginPageState extends State<LoginPage> {
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text("Erreur : ${e.toString()}"),
+                        content: Text("Error : ${e.toString()}"),
                         backgroundColor: Colors.red,
                       ),
                     );
                   }
                 }
               },
-              child: const Text("Envoyer"),
+              child: const Text("Sent"),
             ),
           ],
         );

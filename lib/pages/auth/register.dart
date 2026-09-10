@@ -69,7 +69,7 @@ class _RegisterPageState extends State<RegisterPage> {
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text("Inscription réussie !"),
+            content: Text("Registration  successful !"),
             backgroundColor: Colors.green,
           ),
         );
@@ -80,21 +80,21 @@ class _RegisterPageState extends State<RegisterPage> {
             builder: (context) => ScreenManage(
               userName: _nameController.text.trim().isNotEmpty
                   ? _nameController.text.trim().split(' ')[0]
-                  : 'Utilisateur',
+                  : 'User',
             ),
           ),
           (route) => false,
         );
       }
     } on FirebaseAuthException catch (e) {
-      String errorMessage = "Une erreur est survenue lors de l'inscription.";
+      String errorMessage = "An error occurred during the registration.";
 
       if (e.code == 'weak-password') {
-        errorMessage = "Le mot de passe saisi est trop faible.";
+        errorMessage = "The password is weak.";
       } else if (e.code == 'email-already-in-use') {
-        errorMessage = "Un compte existe déjà pour cette adresse email.";
+        errorMessage = "An account already existe with this email.";
       } else if (e.code == 'invalid-email') {
-        errorMessage = "L'adresse email n'est pas valide.";
+        errorMessage = "Invalid email address.";
       }
 
       if (mounted) {
@@ -109,7 +109,7 @@ class _RegisterPageState extends State<RegisterPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("Erreur: ${e.toString()}"),
+            content: Text("Error: ${e.toString()}"),
             backgroundColor: Colors.red,
           ),
         );
