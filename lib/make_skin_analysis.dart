@@ -45,6 +45,47 @@ class _MakeSkinAnalysisPageState extends State<MakeSkinAnalysisPage> with Widget
     _initCameraController(_cameras![_selectedCameraIndex]);
   }
 
+  // Méthode pour capturer la vraie photo
+  Future<void> _captureAndAnalyze() async {
+    if (_cameraController == null || !_cameraController!.value.isInitialized) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('La caméra n\'est pas prête.')),
+      );
+      return;
+    }
+
+    if (_cameraController!.value.isTakingPicture || _isScanning) return;
+
+    try {
+      setState(() {
+        _isScanning = true;
+      });
+
+      // 1. Capture de la photo réelle depuis le flux caméra
+      final XFile photo = await _cameraController!.takePicture();
+
+      if (!mounted) return;
+
+      // 2. Redirection vers la page de progression en lui passant le chemin de la VRAIE photo
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => SkinAnalysisProgressPage(imagePath: photo.path),
+        ),
+      );
+    } catch (e) {
+      debugPrint('Erreur lors de la prise de photo : $e');
+      if (mounted) {
+        setState(() {
+          _isScanning = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur lors de la capture : $e')),
+        );
+      }
+    }
+  }
+
   Future<void> _initCamera() async {
     final cameraPermission = await Permission.camera.request();
     if (cameraPermission != PermissionStatus.granted) {
@@ -89,26 +130,6 @@ class _MakeSkinAnalysisPageState extends State<MakeSkinAnalysisPage> with Widget
     super.dispose();
   }
 
-  void _startScanning() {
-    setState(() {
-      _isScanning = true;
-    });
-    // Simulate scan process
-    _scannerController.repeat(reverse: true);
-    Future.delayed(const Duration(seconds: 15), () {
-      if (mounted) {
-        setState(() {
-          _isScanning = false;
-        });
-        // Navigate immediately to progress page
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const SkinAnalysisProgressPage()),
-        );
-      }
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -130,12 +151,12 @@ class _MakeSkinAnalysisPageState extends State<MakeSkinAnalysisPage> with Widget
               Padding(
                 padding: const EdgeInsets.all(8),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    IconButton(
+                    /*IconButton(
                       icon: const Icon(Icons.arrow_back_ios, color: AppColors.white, size: 20),
                       onPressed: () => Navigator.pop(context),
-                    ),
+                    ),*/
                     const Text(
                       'Skin Analysis',
                       style: TextStyle(
@@ -175,15 +196,15 @@ class _MakeSkinAnalysisPageState extends State<MakeSkinAnalysisPage> with Widget
                         ? CameraPreview(_cameraController!) : Image.asset("assets/images/logo.png"),
                   ),
 
-                  Container(
-                    //width: 400,
+                 /* Container(
+                    width: 40,
                     height: 420,
                     decoration: BoxDecoration(
                       color: AppColors.black.withAlpha(51), // 0.2 * 255
                       borderRadius: BorderRadius.circular(40),
                       border: Border.all(color: AppColors.white.withAlpha(128), width: 1.5),
                     ),
-                  ),
+                  ),*/
 
                   // Scanning Brackets
                   const SizedBox(
@@ -263,8 +284,9 @@ class _MakeSkinAnalysisPageState extends State<MakeSkinAnalysisPage> with Widget
               const SizedBox(height: 20),
 
               // Scan Button
+// Mettre à jour le GestureDetector du bouton de scan
               GestureDetector(
-                onTap: _isScanning ? null : _startScanning,
+                onTap: _isScanning ? null : _captureAndAnalyze,
                 child: Container(
                   width: 85,
                   height: 85,
@@ -286,7 +308,6 @@ class _MakeSkinAnalysisPageState extends State<MakeSkinAnalysisPage> with Widget
                   ),
                 ),
               ),
-
               const SizedBox(height: 20),
             ],
           ),

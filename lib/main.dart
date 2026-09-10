@@ -1,18 +1,21 @@
-import 'package:flutter/material.dart';
-import 'package:ziskin/pages/auth/register.dart';
-import 'package:ziskin/splash_screen.dart';
-import 'app_colors.dart';
-import 'landing_page.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'app_colors.dart';
+import 'auth_gate.dart';
 import 'firebase_options.dart';
 
-void main() async{
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (e) {
+    debugPrint("Failed to load .env: $e");
+  }
+
   await Firebase.initializeApp(
-
     options: DefaultFirebaseOptions.currentPlatform,
-
   );
 
   runApp(const MyApp());
@@ -20,11 +23,6 @@ void main() async{
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
-
-  Future<bool> isLoggedIn() async {
-    await Future.delayed(Duration(seconds: 8));
-    return true;
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -39,27 +37,7 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
         scaffoldBackgroundColor: AppColors.white,
       ),
-      home: FutureBuilder(
-        future:
-        isLoggedIn(),
-
-        builder: (context, snapshot) {
-
-          if (!snapshot.hasData) {
-            return const SplashScreen();
-          }
-
-          if (snapshot.data == true) {
-            return const LandingPage();
-          }
-
-          if (snapshot.hasError) {
-            return const RegisterPage();
-          }
-
-          return const RegisterPage();
-        },
-      ),
+      home: const AuthGate(),
     );
   }
 }
