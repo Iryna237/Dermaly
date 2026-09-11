@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
+import 'questionnaire.dart';
 import 'routine.dart';
 import 'services/gemini_service.dart';
 
@@ -12,6 +13,7 @@ class SkinResultPage extends StatelessWidget {
   final String skinType;
   final String skinTypeDetails;
   final String recommendationSummary;
+  final DateTime? analyzedAt;
 
   const SkinResultPage({
     super.key,
@@ -22,6 +24,7 @@ class SkinResultPage extends StatelessWidget {
     required this.skinTypeDetails,
     required this.concerns,
     required this.recommendationSummary,
+    this.analyzedAt,
   });
 
   // Constructeur depuis le résultat de l'analyse Gemini
@@ -34,11 +37,12 @@ class SkinResultPage extends StatelessWidget {
       skinTypeDetails: result.skinTypeDetails,
       concerns: result.concerns,
       recommendationSummary: result.recommendationSummary,
+      analyzedAt: result.analyzedAt,
     );
   }
 
   String _getFormattedDate() {
-    final now = DateTime.now();
+    final now = analyzedAt ?? DateTime.now();
     final months = [
       'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
@@ -47,7 +51,7 @@ class SkinResultPage extends StatelessWidget {
   }
 
   String _getFormattedTime() {
-    final now = DateTime.now();
+    final now = analyzedAt ?? DateTime.now();
     final hour = now.hour > 12 ? now.hour - 12 : (now.hour == 0 ? 12 : now.hour);
     final amPm = now.hour >= 12 ? 'PM' : 'AM';
     final minute = now.minute.toString().padLeft(2, '0');
@@ -338,6 +342,40 @@ class SkinResultPage extends StatelessWidget {
                       ),
                       SizedBox(width: 15),
                       Icon(Icons.arrow_forward, size: 20),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 15),
+
+              // Nouvelle analyse : recommence depuis le questionnaire.
+              // L'analyse sauvegardée n'est écrasée qu'une fois la nouvelle terminée.
+              SizedBox(
+                width: double.infinity,
+                height: 60,
+                child: OutlinedButton(
+                  onPressed: () {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(builder: (context) => const QuestionnairePage()),
+                    );
+                  },
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.primaryPurple,
+                    side: const BorderSide(color: AppColors.primaryPurple, width: 1.5),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.refresh, size: 20),
+                      SizedBox(width: 10),
+                      Text(
+                        'New Analysis',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
                     ],
                   ),
                 ),

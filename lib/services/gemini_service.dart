@@ -15,6 +15,9 @@ class SkinAnalysisResult {
   final Map<String, int> concerns;
   final String recommendationSummary;
 
+  /// Date de l'analyse (renseignée lors de la sauvegarde)
+  final DateTime? analyzedAt;
+
   SkinAnalysisResult({
     required this.imagePath,
     required this.overallScore,
@@ -23,7 +26,21 @@ class SkinAnalysisResult {
     required this.skinTypeDetails,
     required this.concerns,
     required this.recommendationSummary,
+    this.analyzedAt,
   });
+
+  SkinAnalysisResult copyWith({String? imagePath, DateTime? analyzedAt}) {
+    return SkinAnalysisResult(
+      imagePath: imagePath ?? this.imagePath,
+      overallScore: overallScore,
+      hydrationLevel: hydrationLevel,
+      skinType: skinType,
+      skinTypeDetails: skinTypeDetails,
+      concerns: concerns,
+      recommendationSummary: recommendationSummary,
+      analyzedAt: analyzedAt ?? this.analyzedAt,
+    );
+  }
 
   /// Factory constructor to parse the JSON response from Gemini
   factory SkinAnalysisResult.fromJson(

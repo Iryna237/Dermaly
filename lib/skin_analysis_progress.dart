@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
 import 'services/gemini_service.dart';
+import 'services/skin_analysis_storage.dart';
 import 'skin_result.dart';
 
 class SkinAnalysisProgressPage extends StatefulWidget {
@@ -66,15 +67,31 @@ class _SkinAnalysisProgressPageState extends State<SkinAnalysisProgressPage>
     });
 
     try {
-      final result = await GeminiService.analyzeSkin(widget.imagePath);
+      var result = await GeminiService.analyzeSkin(widget.imagePath);
+
+      var saveFailed = false;
+      try {
+        result = await SkinAnalysisStorage.save(result);
+      } catch (e) {
+        debugPrint('Erreur sauvegarde analyse: $e');
+        saveFailed = true;
+      }
 
       if (!mounted) return;
 
-      Navigator.pushReplacement(
+      if (saveFailed) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Your analysis result could not be saved.')),
+        );
+      }
+
+      // Retirer questionnaire/caméra de la pile : le retour ramène à l'accueil
+      Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(
           builder: (context) => SkinResultPage.fromResult(result),
         ),
+        (route) => route.isFirst,
       );
     } catch (e) {
       debugPrint('Analysis error: $e');

@@ -5,6 +5,9 @@ import 'app_colors.dart';
 import 'pages/profile_page.dart';
 import 'questionnaire.dart';
 import 'routine.dart';
+import 'services/gemini_service.dart';
+import 'services/skin_analysis_storage.dart';
+import 'skin_result.dart';
 
 class SkinCareHomePage extends StatefulWidget {
   final String? userName;
@@ -24,6 +27,34 @@ class SkinCareHomePage extends StatefulWidget {
 
 class _SkinCareHomePageState extends State<SkinCareHomePage> {
   String _displayName = '';
+  bool _isOpeningAnalysis = false;
+
+  /// Première analyse : questionnaire puis scan.
+  /// Analyses suivantes : affiche directement le dernier résultat sauvegardé.
+  Future<void> _openSkinAnalysis() async {
+    if (_isOpeningAnalysis) return;
+    setState(() => _isOpeningAnalysis = true);
+
+    SkinAnalysisResult? saved;
+    try {
+      saved = await SkinAnalysisStorage.load();
+    } catch (e) {
+      debugPrint('Erreur chargement analyse sauvegardée: $e');
+    }
+
+    if (!mounted) return;
+    setState(() => _isOpeningAnalysis = false);
+
+    final result = saved;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => result != null
+            ? SkinResultPage.fromResult(result)
+            : const QuestionnairePage(),
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -377,12 +408,8 @@ class _SkinCareHomePageState extends State<SkinCareHomePage> {
                   icon: Icons.arrow_forward,
                   color: AppColors.lightPurple,
                   showBadge: true,
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const QuestionnairePage()),
-                    );
-                  },
+                  isLoading: _isOpeningAnalysis,
+                  onTap: _openSkinAnalysis,
                 ),
                 _buildJourneyCard(
                   title: 'Skin Progress',
@@ -480,6 +507,7 @@ class _SkinCareHomePageState extends State<SkinCareHomePage> {
     required Color color,
     Color? borderColor,
     bool showBadge = false,
+    bool isLoading = false,
     VoidCallback? onTap,
   }) {
     return GestureDetector(
@@ -531,7 +559,16 @@ class _SkinCareHomePageState extends State<SkinCareHomePage> {
             const Spacer(),
             Align(
               alignment: Alignment.bottomRight,
-              child: Icon(icon, color: AppColors.terracotta.withAlpha(153), size: 22),
+              child: isLoading
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        color: AppColors.terracotta,
+                      ),
+                    )
+                  : Icon(icon, color: AppColors.terracotta.withAlpha(153), size: 22),
             ),
           ],
         ),
