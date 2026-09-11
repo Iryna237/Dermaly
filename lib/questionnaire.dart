@@ -143,7 +143,12 @@ class _QuestionnairePageState extends State<QuestionnairePage> {
           },
         ),
         title: Text(
-          _currentPage == 0 ? '' : 'Step $_currentPage of 11',
+          // Page 0 = intro, pages 1 à 11 = questions, page 12 = fin du questionnaire
+          _currentPage == 0
+              ? ''
+              : _currentPage == 12
+                  ? 'Complete'
+                  : 'Step $_currentPage of 11',
           style: const TextStyle(color: AppColors.greyText, fontSize: 14),
         ),
         centerTitle: true,
