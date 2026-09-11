@@ -70,11 +70,11 @@ class SkinAnalysisResult {
       'Fine Lines',
     ];
 
-    for (final key in defaultConcernKeys) {
-      if (!parsedConcerns.containsKey(key)) {
-        parsedConcerns[key] = 30;
-      }
-    }
+    // Ordre d'affichage fixe : Firestore ne conserve pas l'ordre des clés d'une map
+    final orderedConcerns = <String, int>{
+      for (final key in defaultConcernKeys) key: parsedConcerns[key] ?? 30,
+    };
+    parsedConcerns.forEach((key, value) => orderedConcerns.putIfAbsent(key, () => value));
 
     int parseNum(dynamic value, int fallback) {
       if (value is num) return value.toInt().clamp(0, 100);
@@ -92,7 +92,7 @@ class SkinAnalysisResult {
       skinTypeDetails: (json['skinTypeDetails'] as String?)?.trim().isNotEmpty == true
           ? json['skinTypeDetails'] as String
           : 'Normal on cheeks with slight oiliness in the T-zone',
-      concerns: parsedConcerns,
+      concerns: orderedConcerns,
       recommendationSummary:
           (json['recommendationSummary'] as String?)?.trim().isNotEmpty == true
               ? json['recommendationSummary'] as String
