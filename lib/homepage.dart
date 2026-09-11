@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'ai_chat.dart';
 import 'app_colors.dart';
 import 'pages/profile_page.dart';
 import 'questionnaire.dart';
@@ -28,6 +29,7 @@ class SkinCareHomePage extends StatefulWidget {
 
 class _SkinCareHomePageState extends State<SkinCareHomePage> {
   String _displayName = '';
+  String? _photoUrl;
   bool _isOpeningAnalysis = false;
 
   /// Première analyse : questionnaire puis scan.
@@ -60,55 +62,60 @@ class _SkinCareHomePageState extends State<SkinCareHomePage> {
   @override
   void initState() {
     super.initState();
-    _initUserName();
+    _initUserData();
   }
 
   @override
   void didUpdateWidget(covariant SkinCareHomePage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.userName != widget.userName) {
-      _initUserName();
+      _initUserData();
     }
   }
 
-  void _initUserName() {
-    if (widget.userName != null && widget.userName!.trim().isNotEmpty) {
-      _displayName = widget.userName!.trim();
-      return;
-    }
-
+  void _initUserData() {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      if (user.displayName != null && user.displayName!.trim().isNotEmpty) {
-        _displayName = user.displayName!.trim().split(' ')[0];
-      } else if (user.email != null && user.email!.trim().isNotEmpty) {
-        _displayName = user.email!.trim().split('@')[0];
+      _photoUrl = user.photoURL;
+      
+      if (widget.userName != null && widget.userName!.trim().isNotEmpty) {
+        _displayName = widget.userName!.trim();
       } else {
-        _displayName = 'Utilisateur';
+        if (user.displayName != null && user.displayName!.trim().isNotEmpty) {
+          _displayName = user.displayName!.trim().split(' ')[0];
+        } else if (user.email != null && user.email!.trim().isNotEmpty) {
+          _displayName = user.email!.trim().split('@')[0];
+        } else {
+          _displayName = 'Utilisateur';
+        }
       }
-      _fetchNameFromFirestore(user.uid);
+      _fetchDataFromFirestore(user.uid);
     } else {
       _displayName = 'Utilisateur';
     }
   }
 
-  Future<void> _fetchNameFromFirestore(String uid) async {
+  Future<void> _fetchDataFromFirestore(String uid) async {
     try {
       final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
       if (doc.exists && doc.data() != null) {
         final data = doc.data()!;
         final fullName = (data['fullName'] ?? data['name'] ?? '').toString().trim();
-        if (fullName.isNotEmpty) {
-          final firstName = fullName.split(' ')[0];
-          if (mounted && _displayName != firstName) {
-            setState(() {
-              _displayName = firstName;
-            });
-          }
+        final photoUrl = data['photoUrl'];
+        
+        if (mounted) {
+          setState(() {
+            if (fullName.isNotEmpty) {
+              _displayName = fullName.split(' ')[0];
+            }
+            if (photoUrl != null) {
+              _photoUrl = photoUrl;
+            }
+          });
         }
       }
     } catch (e) {
-      debugPrint('Erreur récupération nom utilisateur: $e');
+      debugPrint('Erreur récupération données utilisateur: $e');
     }
   }
 
@@ -217,19 +224,22 @@ class _SkinCareHomePageState extends State<SkinCareHomePage> {
                   child: CircleAvatar(
                     radius: 30,
                     backgroundColor: AppColors.lightPurple,
-                    child: ClipOval(
-                      child: Image.asset(
-                        widget.profileImagePath,
-                        fit: BoxFit.cover,
-                        width: 60,
-                        height: 60,
-                        errorBuilder: (context, error, stackTrace) => const Icon(
-                          Icons.person,
-                          color: AppColors.terracotta,
-                          size: 30,
-                        ),
-                      ),
-                    ),
+                    backgroundImage: _photoUrl != null ? NetworkImage(_photoUrl!) : null,
+                    child: _photoUrl == null
+                        ? ClipOval(
+                            child: Image.asset(
+                              widget.profileImagePath,
+                              fit: BoxFit.cover,
+                              width: 60,
+                              height: 60,
+                              errorBuilder: (context, error, stackTrace) => const Icon(
+                                Icons.person,
+                                color: AppColors.terracotta,
+                                size: 30,
+                              ),
+                            ),
+                          )
+                        : null,
                   ),
                 ),
               ],
@@ -442,6 +452,12 @@ class _SkinCareHomePageState extends State<SkinCareHomePage> {
                   subtitle: 'Get expert advice',
                   icon: Icons.chat_bubble_outline,
                   color: AppColors.terracotta,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const AiChatPage()),
+                    );
+                  },
                 ),
               ],
             ),

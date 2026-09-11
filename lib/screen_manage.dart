@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:ziskin/ai_chat.dart';
 import 'package:ziskin/app_colors.dart';
 import 'package:ziskin/homepage.dart';
 import 'package:ziskin/make_skin_analysis.dart';
@@ -31,7 +32,7 @@ class _ScreenManageState extends State<ScreenManage> {
       ),
       const SkinProgressPage(),
       const MakeSkinAnalysisPage(),
-      SkinCareHomePage(userName: widget.userName),
+      const AiChatPage(),
       const ProfilePage(),
     ];
 
