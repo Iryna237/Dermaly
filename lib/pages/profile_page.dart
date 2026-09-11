@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:ziskin/pages/auth/login.dart';
 import '../app_colors.dart';
 import '../auth_gate.dart';
@@ -19,6 +22,8 @@ class _ProfilePageState extends State<ProfilePage> {
   String _email = '';
   int? _age;
   String _skinType = '';
+  String? _photoUrl;
+  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
@@ -31,6 +36,7 @@ class _ProfilePageState extends State<ProfilePage> {
     if (user != null) {
       _email = user.email ?? '';
       _fullName = user.displayName ?? '';
+      _photoUrl = user.photoURL;
 
       final profile = await _authService.getUserProfile();
       if (mounted && profile != null) {
@@ -41,6 +47,7 @@ class _ProfilePageState extends State<ProfilePage> {
             _age = int.tryParse(profile['age'].toString());
           }
           _skinType = (profile['skinType'] ?? '').toString().trim();
+          _photoUrl = profile['photoUrl'] ?? _photoUrl;
           _isLoading = false;
         });
         return;
@@ -64,19 +71,19 @@ class _ProfilePageState extends State<ProfilePage> {
             Icon(Icons.logout, color: AppColors.terracotta),
             SizedBox(width: 10),
             Text(
-              'Déconnexion',
+              'Logout',
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
             ),
           ],
         ),
         content: const Text(
-          'Êtes-vous sûr de vouloir vous déconnecter de votre compte Dermaly ?',
+          'Are you sure you want to logout of your Dermaly account ?',
           style: TextStyle(fontSize: 15, color: AppColors.greyText),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annuler', style: TextStyle(color: AppColors.greyText)),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.greyText)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
@@ -85,7 +92,7 @@ class _ProfilePageState extends State<ProfilePage> {
               foregroundColor: AppColors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
-            child: const Text('Se déconnecter'),
+            child: const Text('Logout'),
           ),
         ],
       ),
@@ -99,7 +106,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text("Vous avez été déconnecté avec succès."),
+            content: Text("You have been successfully logged out."),
             backgroundColor: Colors.green,
           ),
         );
@@ -113,11 +120,67 @@ class _ProfilePageState extends State<ProfilePage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text("Erreur lors de la déconnexion: $e"),
+              content: Text("Error occured while logging out: $e"),
               backgroundColor: Colors.red,
             ),
           );
         }
+      }
+    }
+  }
+
+  Future<void> _pickAndUploadImage() async {
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 512,
+        maxHeight: 512,
+        imageQuality: 75,
+      );
+
+      if (image != null) {
+        setState(() {
+          _isLoading = true;
+        });
+
+        final url = await _authService.uploadProfilePicture(File(image.path));
+
+        if (mounted) {
+          if (url != null) {
+            setState(() {
+              _photoUrl = url;
+              _isLoading = false;
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text("Profile picture updated successfully !"),
+                backgroundColor: Colors.green,
+              ),
+            );
+          } else {
+            setState(() {
+              _isLoading = false;
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text("Error uploading image."),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Error picking image: $e"),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
@@ -127,7 +190,7 @@ class _ProfilePageState extends State<ProfilePage> {
     final user = _authService.currentUser;
     final displayName = _fullName.isNotEmpty
         ? _fullName
-        : (user?.displayName ?? (user?.email?.split('@')[0] ?? 'Utilisateur'));
+        : (user?.displayName ?? (user?.email?.split('@')[0] ?? 'User'));
 
     return Scaffold(
       backgroundColor: AppColors.softPurple,
@@ -136,7 +199,7 @@ class _ProfilePageState extends State<ProfilePage> {
         elevation: 0,
         centerTitle: true,
         title: const Text(
-          'Mon Profil',
+          'My Profile',
           style: TextStyle(
             color: AppColors.darkPurple,
             fontWeight: FontWeight.bold,
@@ -146,7 +209,7 @@ class _ProfilePageState extends State<ProfilePage> {
         actions: [
           IconButton(
             icon: const Icon(Icons.logout, color: AppColors.terracotta),
-            tooltip: 'Se déconnecter',
+            tooltip: 'Logout',
             onPressed: _confirmSignOut,
           ),
         ],
@@ -163,22 +226,55 @@ class _ProfilePageState extends State<ProfilePage> {
                   Center(
                     child: Column(
                       children: [
-                        CircleAvatar(
-                          radius: 50,
-                          backgroundColor: AppColors.lightPurple,
-                          child: ClipOval(
-                            child: Image.asset(
-                              'assets/images/iryna.jpeg',
-                              width: 100,
-                              height: 100,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) => const Icon(
-                                Icons.person,
-                                color: AppColors.terracotta,
-                                size: 55,
+                        Stack(
+                          children: [
+                            Container(
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(color: AppColors.white, width: 3),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: AppColors.black.withAlpha(20),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 5),
+                                  ),
+                                ],
+                              ),
+                              child: CircleAvatar(
+                                radius: 55,
+                                backgroundColor: AppColors.lightPurple,
+                                backgroundImage: _photoUrl != null
+                                    ? NetworkImage(_photoUrl!)
+                                    : null,
+                                child: _photoUrl == null
+                                    ? const Icon(
+                                        Icons.person,
+                                        color: AppColors.terracotta,
+                                        size: 60,
+                                      )
+                                    : null,
                               ),
                             ),
-                          ),
+                            Positioned(
+                              bottom: 0,
+                              right: 0,
+                              child: GestureDetector(
+                                onTap: _pickAndUploadImage,
+                                child: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: const BoxDecoration(
+                                    color: AppColors.terracotta,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.camera_alt,
+                                    color: AppColors.white,
+                                    size: 20,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 16),
                         Text(
@@ -221,7 +317,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'Informations personnelles',
+                          'Personal Information',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -229,19 +325,19 @@ class _ProfilePageState extends State<ProfilePage> {
                           ),
                         ),
                         const SizedBox(height: 16),
-                        _buildInfoRow(Icons.person_outline, 'Nom complet', displayName),
+                        _buildInfoRow(Icons.person_outline, 'Full name', displayName),
                         const Divider(height: 24),
-                        _buildInfoRow(Icons.email_outlined, 'Email', _email.isNotEmpty ? _email : 'Non renseigné'),
+                        _buildInfoRow(Icons.email_outlined, 'Email', _email.isNotEmpty ? _email : 'Not provided'),
                         const Divider(height: 24),
                         _buildInfoRow(
                           Icons.cake_outlined,
-                          'Âge',
-                          _age != null ? '$_age ans' : 'Non renseigné',
+                          'Age',
+                          _age != null ? '$_age ans' : 'Not provided',
                         ),
                         const Divider(height: 24),
                         _buildInfoRow(
                           Icons.spa_outlined,
-                          'Type de peau',
+                          'SkinType',
                           _skinType.isNotEmpty ? _skinType : 'Non défini (Faire le test)',
                         ),
                       ],
@@ -268,7 +364,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'Sécurité & Session',
+                          'Session and Security',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -286,8 +382,8 @@ class _ProfilePageState extends State<ProfilePage> {
                             ),
                             child: const Icon(Icons.shield_outlined, color: AppColors.primaryPurple, size: 20),
                           ),
-                          title: const Text('Persistance de connexion', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                          subtitle: const Text('Session active et sécurisée par Firebase', style: TextStyle(fontSize: 12, color: AppColors.greyText)),
+                          title: const Text('Stay signed in', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                          subtitle: const Text('Session active and secured by Firebase', style: TextStyle(fontSize: 12, color: AppColors.greyText)),
                           trailing: const Icon(Icons.check_circle, color: Colors.green, size: 20),
                         ),
                       ],
@@ -304,7 +400,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       onPressed: _confirmSignOut,
                       icon: const Icon(Icons.logout, color: AppColors.white),
                       label: const Text(
-                        'SE DÉCONNECTER',
+                        'LOGOUT',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
