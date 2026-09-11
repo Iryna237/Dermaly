@@ -11,9 +11,10 @@ class MakeSkinAnalysisPage extends StatefulWidget {
   State<MakeSkinAnalysisPage> createState() => _MakeSkinAnalysisPageState();
 }
 
-class _MakeSkinAnalysisPageState extends State<MakeSkinAnalysisPage> with WidgetsBindingObserver {
-  late AnimationController _scannerController;
-  late Animation<double> _scannerAnimation;
+class _MakeSkinAnalysisPageState extends State<MakeSkinAnalysisPage>
+    with WidgetsBindingObserver, SingleTickerProviderStateMixin {
+  late final AnimationController _scannerController;
+  late final Animation<double> _scannerAnimation;
   bool _isScanning = false;
   CameraController? _cameraController;
   List<CameraDescription>? _cameras;
@@ -27,16 +28,18 @@ class _MakeSkinAnalysisPageState extends State<MakeSkinAnalysisPage> with Widget
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _initCamera();
 
-    /*_scannerController = AnimationController(
+    // La ligne de scan ne s'anime que pendant la capture (voir _captureAndAnalyze)
+    _scannerController = AnimationController(
       duration: const Duration(seconds: 2),
       vsync: this,
-    )..repeat(reverse: true);
+    );
 
     _scannerAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _scannerController, curve: Curves.easeInOut),
-    );*/
+    );
+
+    _initCamera();
   }
 
   void _switchCamera() {
@@ -60,6 +63,7 @@ class _MakeSkinAnalysisPageState extends State<MakeSkinAnalysisPage> with Widget
       setState(() {
         _isScanning = true;
       });
+      _scannerController.repeat(reverse: true);
 
       // 1. Capture de la photo réelle depuis le flux caméra
       final XFile photo = await _cameraController!.takePicture();
@@ -76,6 +80,7 @@ class _MakeSkinAnalysisPageState extends State<MakeSkinAnalysisPage> with Widget
     } catch (e) {
       debugPrint('Erreur lors de la prise de photo : $e');
       if (mounted) {
+        _scannerController.stop();
         setState(() {
           _isScanning = false;
         });
@@ -93,7 +98,8 @@ class _MakeSkinAnalysisPageState extends State<MakeSkinAnalysisPage> with Widget
     }
 
     final cameras = await availableCameras();
-    if (cameras.isEmpty) return;
+    // Page fermée pendant la demande de permission : ne pas ouvrir une caméra qui ne serait jamais libérée
+    if (!mounted || cameras.isEmpty) return;
     _cameras = cameras;
     _selectedCameraIndex = 0;
     _initCameraController(cameras[_selectedCameraIndex]);
@@ -125,8 +131,10 @@ class _MakeSkinAnalysisPageState extends State<MakeSkinAnalysisPage> with Widget
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _scannerController.dispose();
-    _cameraController!.dispose();
+    // Null si la permission caméra a été refusée
+    _cameraController?.dispose();
     super.dispose();
   }
 
