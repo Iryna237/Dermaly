@@ -360,14 +360,6 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
-  google_generative_ai:
-    dependency: "direct main"
-    description:
-      name: google_generative_ai
-      sha256: "71f613d0247968992ad87a0eb21650a566869757442ba55a31a81be6746e0d1f"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.4.7"
   hooks:
     dependency: transitive
     description:
@@ -652,18 +644,18 @@ packages:
     dependency: "direct main"
     description:
       name: permission_handler
-      sha256: e6bcecadfe40df6b888141f23cbaf6ba6c3da49fb33f6ff887d060dd48544fbd
-      url: "https://pub.dev"
-    source: hosted
-    version: "13.0.2"
-  permission_handler_android:
-    dependency: "direct overridden"
-    description:
-      name: permission_handler_android
-      sha256: "1e3bc410ca1bf84662104b100eb126e066cb55791b7451307f9708d4007350e6"
+      sha256: e7317eb2eb611d1bf0386b6b974be9c50449f975f19a90a7b8ea013550302b30
       url: "https://pub.dev"
     source: hosted
     version: "13.0.1"
+  permission_handler_android:
+    dependency: transitive
+    description:
+      name: permission_handler_android
+      sha256: d7676c6fcf2f0b92537ec41476a6ead45a00b0d8bbb852395a6f9f33f49d6242
+      url: "https://pub.dev"
+    source: hosted
+    version: "14.0.0"
   permission_handler_apple:
     dependency: transitive
     description:

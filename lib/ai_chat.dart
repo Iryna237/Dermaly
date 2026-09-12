@@ -15,6 +15,8 @@ class _AiChatPageState extends State<AiChatPage> {
   final ChatService _chatService = ChatService();
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  // Flux créé une seule fois : sinon chaque setState se réabonne et réaffiche le chargement
+  late final Stream<List<ChatMessage>> _messages = _chatService.getMessages();
   bool _isTyping = false;
 
   @override
@@ -24,9 +26,9 @@ class _AiChatPageState extends State<AiChatPage> {
     super.dispose();
   }
 
-  void _sendMessage() async {
+  Future<void> _sendMessage() async {
     final text = _messageController.text.trim();
-    if (text.isEmpty) return;
+    if (text.isEmpty || _isTyping) return;
 
     _messageController.clear();
     setState(() {
@@ -35,6 +37,16 @@ class _AiChatPageState extends State<AiChatPage> {
 
     try {
       await _chatService.sendMessage(text);
+    } catch (e) {
+      debugPrint('Erreur chat: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Dr. Zita could not answer: ${e.toString().replaceAll('Exception: ', '')}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } finally {
       if (mounted) {
         setState(() {
@@ -51,10 +63,15 @@ class _AiChatPageState extends State<AiChatPage> {
       appBar: AppBar(
         backgroundColor: const Color(0xFFF7F2EE),
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: AppColors.darkPurple, size: 20),
-          onPressed: () => Navigator.pop(context),
-        ),
+        automaticallyImplyLeading: false,
+        // Bouton retour seulement si la page a été ouverte depuis l'accueil (pas depuis l'onglet Chat) :
+        // dans l'onglet, pop fermerait l'écran principal
+        leading: ModalRoute.of(context)?.canPop == true
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new, color: AppColors.darkPurple, size: 20),
+                onPressed: () => Navigator.pop(context),
+              )
+            : null,
         title: const Text(
           'DERMALY',
           style: TextStyle(
@@ -77,13 +94,25 @@ class _AiChatPageState extends State<AiChatPage> {
           // Chat Messages
           Expanded(
             child: StreamBuilder<List<ChatMessage>>(
-              stream: _chatService.getMessages(),
+              stream: _messages,
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(30),
+                      child: Text(
+                        'Unable to load your messages.\n${snapshot.error}',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: AppColors.greyText),
+                      ),
+                    ),
+                  );
+                }
+                if (!snapshot.hasData) {
                   return const Center(child: CircularProgressIndicator(color: AppColors.primaryPurple));
                 }
 
-                final messages = snapshot.data ?? [];
+                final messages = snapshot.data!;
 
                 return ListView.builder(
                   controller: _scrollController,
@@ -92,11 +121,11 @@ class _AiChatPageState extends State<AiChatPage> {
                   itemCount: messages.length + 1,
                   itemBuilder: (context, index) {
                     if (index == 0) {
-                      return _isTyping 
-                        ? _buildTypingIndicator() 
+                      return _isTyping
+                        ? _buildTypingIndicator()
                         : const SizedBox.shrink();
                     }
-                    
+
                     final message = messages[index - 1];
                     return _buildChatBubble(message);
                   },
@@ -137,7 +166,7 @@ class _AiChatPageState extends State<AiChatPage> {
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
+                        color: Colors.black.withAlpha(13), // 0.05 * 255
                         blurRadius: 5,
                         offset: const Offset(0, 2),
                       ),
@@ -159,7 +188,7 @@ class _AiChatPageState extends State<AiChatPage> {
           Text(
             timeStr,
             style: TextStyle(
-              color: Colors.grey.withOpacity(0.8),
+              color: Colors.grey.withAlpha(204), // 0.8 * 255
               fontSize: 11,
             ),
           ),
@@ -191,7 +220,7 @@ class _AiChatPageState extends State<AiChatPage> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
       decoration: BoxDecoration(
         color: const Color(0xFFF7F2EE),
-        border: Border(top: BorderSide(color: Colors.grey.withOpacity(0.1))),
+        border: Border(top: BorderSide(color: Colors.grey.withAlpha(26))), // 0.1 * 255
       ),
       child: SafeArea(
         child: Container(
@@ -200,7 +229,7 @@ class _AiChatPageState extends State<AiChatPage> {
             borderRadius: BorderRadius.circular(30),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                color: Colors.black.withAlpha(13), // 0.05 * 255
                 blurRadius: 10,
                 offset: const Offset(0, -2),
               ),

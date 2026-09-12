@@ -1,117 +1,81 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_generative_ai/google_generative_ai.dart';
 import '../models/chat_message.dart';
+import 'gemini_service.dart';
+import 'skin_analysis_storage.dart';
 
+/// Conversation avec Dr. Zita, la dermatologue IA de Dermaly (Gemini).
+/// Les messages sont stockés dans `users/{uid}/messages`.
 class ChatService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  /// Nombre de messages précédents envoyés à Gemini pour garder le contexte
+  static const int _historyLength = 20;
 
-  // IMPORTANT: Replace with your actual Gemini API Key
-  static const String _apiKey = '';
+  static const String _systemInstruction =
+      'You are Dr. Zita, a specialized dermatologist for Dermaly. '
+      'Your goal is to provide expert skincare advice, analyze skin concerns, '
+      'and suggest skincare routines. Be professional, empathetic, and encouraging. '
+      'Always remind users to consult a doctor in person for severe conditions.';
 
-  late final GenerativeModel _model;
-  ChatSession? _chatSession;
-
-  ChatService() {
-    _model = GenerativeModel(
-      model: 'gemini-1.5-flash',
-      apiKey: _apiKey,
-      generationConfig: GenerationConfig(
-        temperature: 0.7,
-        topK: 40,
-        topP: 0.95,
-        maxOutputTokens: 1024,
-      ),
-      systemInstruction: Content.system(
-        'You are Dr. Zita, a specialized dermatologist for Dermaly. '
-        'Your goal is to provide expert skincare advice, analyze skin concerns, '
-        'and suggest skincare routines. Be professional, empathetic, and encouraging. '
-        'Always remind users to consult a doctor in person for severe conditions.'
-      ),
-    );
+  CollectionReference<Map<String, dynamic>>? _messages() {
+    return SkinAnalysisStorage.userDoc()?.collection('messages');
   }
 
-  String get _userId => _auth.currentUser?.uid ?? 'anonymous';
-
-  /// Stream of chat messages for the current user
+  /// Messages de l'utilisateur connecté, du plus récent au plus ancien
   Stream<List<ChatMessage>> getMessages() {
-    return _firestore
-        .collection('users')
-        .doc(_userId)
-        .collection('messages')
+    final messages = _messages();
+    if (messages == null) return Stream.value(const []);
+
+    return messages
         .orderBy('timestamp', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => ChatMessage.fromMap(doc.data()))
-            .toList());
+        .map((snapshot) => snapshot.docs.map((doc) => ChatMessage.fromMap(doc.data())).toList());
   }
 
-  /// Send a message to Gemini and store both in Firestore
+  /// Enregistre le message de l'utilisateur, demande la réponse à Gemini puis l'enregistre.
+  /// Lève une exception si Gemini ne répond pas : le message de l'utilisateur reste enregistré.
   Future<void> sendMessage(String text) async {
-    if (text.trim().isEmpty) return;
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return;
+
+    final messages = _messages();
+    if (messages == null) {
+      throw Exception('Please sign in to chat with Dr. Zita.');
+    }
+
+    // Contexte : derniers messages avant le nouveau, remis dans l'ordre chronologique
+    final previous = await messages
+        .orderBy('timestamp', descending: true)
+        .limit(_historyLength)
+        .get();
+    final history = previous.docs.reversed.map((doc) => ChatMessage.fromMap(doc.data()));
 
     final userMessage = ChatMessage(
-      text: text,
+      text: trimmed,
       sender: MessageSender.user,
       timestamp: DateTime.now(),
     );
+    await SkinAnalysisStorage.writeWithTimeout(messages.add(userMessage.toMap()));
 
-    // 1. Save user message to Firestore
-    await _firestore
-        .collection('users')
-        .doc(_userId)
-        .collection('messages')
-        .add(userMessage.toMap());
+    // Gemini attend une conversation qui commence par un message de l'utilisateur
+    final conversation = [...history, userMessage].skipWhile((m) => m.sender == MessageSender.ai);
 
-    try {
-      // 2. Get history for context (optional but better)
-      final historySnapshot = await _firestore
-          .collection('users')
-          .doc(_userId)
-          .collection('messages')
-          .orderBy('timestamp', descending: false)
-          .limitToLast(10)
-          .get();
+    final reply = await GeminiService.generateText(
+      systemInstruction: _systemInstruction,
+      contents: [
+        for (final message in conversation)
+          {
+            'role': message.sender == MessageSender.user ? 'user' : 'model',
+            'parts': [
+              {'text': message.text}
+            ],
+          },
+      ],
+    );
 
-      final history = historySnapshot.docs.map((doc) {
-        final msg = ChatMessage.fromMap(doc.data());
-        return msg.sender == MessageSender.user
-            ? Content.text(msg.text)
-            : Content.model([TextPart(msg.text)]);
-      }).toList();
-
-      // 3. Start/Resume Gemini session
-      _chatSession ??= _model.startChat(history: history);
-
-      // 4. Get AI response
-      final response = await _chatSession!.sendMessage(Content.text(text));
-      final aiText = response.text ?? "I'm sorry, I couldn't process that. Please try again.";
-
-      final aiMessage = ChatMessage(
-        text: aiText,
-        sender: MessageSender.ai,
-        timestamp: DateTime.now(),
-      );
-
-      // 5. Save AI message to Firestore
-      await _firestore
-          .collection('users')
-          .doc(_userId)
-          .collection('messages')
-          .add(aiMessage.toMap());
-          
-    } catch (e) {
-      final errorMessage = ChatMessage(
-        text: "Error: Could not connect to AI. Please check your API key.",
-        sender: MessageSender.ai,
-        timestamp: DateTime.now(),
-      );
-      await _firestore
-          .collection('users')
-          .doc(_userId)
-          .collection('messages')
-          .add(errorMessage.toMap());
-    }
+    final aiMessage = ChatMessage(
+      text: reply,
+      sender: MessageSender.ai,
+      timestamp: DateTime.now(),
+    );
+    await SkinAnalysisStorage.writeWithTimeout(messages.add(aiMessage.toMap()));
   }
 }

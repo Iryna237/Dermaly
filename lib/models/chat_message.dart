@@ -25,7 +25,10 @@ class ChatMessage {
     return ChatMessage(
       text: map['text'] ?? '',
       sender: map['sender'] == 'user' ? MessageSender.user : MessageSender.ai,
-      timestamp: (map['timestamp'] as Timestamp).toDate(),
+      // Horodatage absent ou invalide : ne pas faire planter tout l'historique
+      timestamp: map['timestamp'] is Timestamp
+          ? (map['timestamp'] as Timestamp).toDate()
+          : DateTime.now(),
     );
   }
 }

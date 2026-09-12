@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
@@ -298,5 +299,73 @@ Return ONLY a valid JSON object matching this exact format:
       debugPrint('Error analyzing skin with Gemini: $e');
       rethrow;
     }
+  }
+
+  /// Envoie une conversation à Gemini et retourne le texte de la réponse (utilisé par le chat).
+  /// [contents] : tours de conversation au format de l'API (`role` : `user` ou `model`).
+  static Future<String> generateText({
+    required List<Map<String, dynamic>> contents,
+    String? systemInstruction,
+    double temperature = 0.7,
+  }) async {
+    final url = Uri.parse('$_baseUrl/$_defaultModel:generateContent');
+
+    final requestBody = jsonEncode({
+      if (systemInstruction != null)
+        'system_instruction': {
+          'parts': [
+            {'text': systemInstruction}
+          ]
+        },
+      'contents': contents,
+      'generationConfig': {'temperature': temperature},
+    });
+
+    final http.Response response;
+    try {
+      response = await http
+          .post(
+            url,
+            // Clé dans l'en-tête plutôt que dans l'URL pour qu'elle n'apparaisse pas dans les logs
+            headers: {'Content-Type': 'application/json', 'x-goog-api-key': apiKey},
+            body: requestBody,
+          )
+          .timeout(const Duration(seconds: 40));
+    } on SocketException {
+      throw Exception('Network error: please check your internet connection.');
+    } on TimeoutException {
+      throw Exception('Gemini took too long to respond. Please try again.');
+    }
+
+    if (response.statusCode != 200) {
+      debugPrint('Gemini chat error ${response.statusCode}: ${response.body}');
+
+      String errorMessage = 'HTTP ${response.statusCode}';
+      try {
+        final errJson = jsonDecode(response.body);
+        if (errJson['error']?['message'] != null) {
+          errorMessage = errJson['error']['message'];
+        }
+      } catch (_) {}
+
+      throw Exception('Gemini API Error ($errorMessage)');
+    }
+
+    final Map<String, dynamic> responseData = jsonDecode(response.body);
+    final candidates = responseData['candidates'] as List?;
+    final content = candidates == null || candidates.isEmpty
+        ? null
+        : candidates.first['content'] as Map<String, dynamic>?;
+
+    // Ignorer les éventuelles parties de réflexion du modèle
+    final text = [
+      for (final part in content?['parts'] as List? ?? const [])
+        if (part is Map && part['thought'] != true && part['text'] is String) part['text'] as String,
+    ].join().trim();
+
+    if (text.isEmpty) {
+      throw Exception('Gemini returned an empty response.');
+    }
+    return text;
   }
 }
