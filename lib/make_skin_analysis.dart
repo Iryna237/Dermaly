@@ -5,7 +5,9 @@ import 'app_colors.dart';
 import 'skin_analysis_progress.dart';
 
 class MakeSkinAnalysisPage extends StatefulWidget {
-  const MakeSkinAnalysisPage({super.key});
+  final ScanPurpose purpose;
+
+  const MakeSkinAnalysisPage({super.key, this.purpose = ScanPurpose.skinAnalysis});
 
   @override
   State<MakeSkinAnalysisPage> createState() => _MakeSkinAnalysisPageState();
@@ -74,7 +76,7 @@ class _MakeSkinAnalysisPageState extends State<MakeSkinAnalysisPage>
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (context) => SkinAnalysisProgressPage(imagePath: photo.path),
+          builder: (context) => SkinAnalysisProgressPage(imagePath: photo.path, purpose: widget.purpose),
         ),
       );
     } catch (e) {
@@ -165,8 +167,8 @@ class _MakeSkinAnalysisPageState extends State<MakeSkinAnalysisPage>
                       icon: const Icon(Icons.arrow_back_ios, color: AppColors.white, size: 20),
                       onPressed: () => Navigator.pop(context),
                     ),*/
-                    const Text(
-                      'Skin Analysis',
+                    Text(
+                      widget.purpose == ScanPurpose.dailyProgress ? 'Daily Scan' : 'Skin Analysis',
                       style: TextStyle(
                         color: AppColors.white,
                         fontSize: 20,

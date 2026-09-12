@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:ziskin/app_colors.dart';
 import 'package:ziskin/homepage.dart';
 import 'package:ziskin/make_skin_analysis.dart';
-import 'package:ziskin/questionnaire.dart';
+import 'package:ziskin/skin_progress.dart';
 
 import 'package:ziskin/pages/profile_page.dart';
 
@@ -29,7 +29,7 @@ class _ScreenManageState extends State<ScreenManage> {
           });
         },
       ),
-      const QuestionnairePage(),
+      const SkinProgressPage(),
       const MakeSkinAnalysisPage(),
       SkinCareHomePage(userName: widget.userName),
       const ProfilePage(),

@@ -4,11 +4,24 @@ import 'package:flutter/material.dart';
 import 'app_colors.dart';
 import 'services/gemini_service.dart';
 import 'services/skin_analysis_storage.dart';
+import 'services/skin_progress_storage.dart';
 import 'skin_result.dart';
+import 'skin_scan_comparison.dart';
+
+/// Usage d'un scan :
+/// - [skinAnalysis] : bilan Skin Analysis, écrase la dernière analyse sauvegardée
+/// - [dailyProgress] : scan quotidien Skin Progress, ajouté à l'historique et comparé aux jours précédents
+enum ScanPurpose { skinAnalysis, dailyProgress }
 
 class SkinAnalysisProgressPage extends StatefulWidget {
   final String imagePath;
-  const SkinAnalysisProgressPage({super.key, this.imagePath = 'assets/images/logo.png'});
+  final ScanPurpose purpose;
+
+  const SkinAnalysisProgressPage({
+    super.key,
+    this.imagePath = 'assets/images/logo.png',
+    this.purpose = ScanPurpose.skinAnalysis,
+  });
 
   @override
   State<SkinAnalysisProgressPage> createState() => _SkinAnalysisProgressPageState();
@@ -57,7 +70,63 @@ class _SkinAnalysisProgressPageState extends State<SkinAnalysisProgressPage>
       }
     });
 
+    // Scan quotidien : charger l'historique pendant l'analyse Gemini pour comparer dès la fin
+    if (widget.purpose == ScanPurpose.dailyProgress) {
+      _historyFuture = _loadHistory();
+    }
+
     _performAnalysis();
+  }
+
+  Future<List<SkinAnalysisResult>?>? _historyFuture;
+
+  /// Historique des scans, ou null en cas d'erreur
+  Future<List<SkinAnalysisResult>?> _loadHistory() {
+    return SkinProgressStorage.loadHistory().then<List<SkinAnalysisResult>?>(
+      (history) => history,
+      onError: (Object e) {
+        debugPrint('Erreur chargement historique: $e');
+        return null;
+      },
+    );
+  }
+
+  Future<void> _finishDailyScan(SkinAnalysisResult result) async {
+    // Nouvelle tentative si le chargement lancé au début a échoué
+    final history = await (_historyFuture ?? _loadHistory()) ?? await _loadHistory() ?? const [];
+
+    var scan = result;
+    var saveFailed = false;
+    try {
+      scan = await SkinProgressStorage.saveTodayScan(result);
+    } catch (e) {
+      debugPrint('Erreur sauvegarde scan du jour: $e');
+      saveFailed = true;
+    }
+
+    if (!mounted) return;
+
+    if (saveFailed) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Your daily scan could not be saved.')),
+      );
+    }
+
+    // Le scan du jour remplace un éventuel scan déjà fait aujourd'hui : on le compare aux jours précédents
+    final today = SkinProgressStorage.dayKey(scan.analyzedAt ?? DateTime.now());
+    final earlier = history.where((s) => SkinProgressStorage.dayKey(s.analyzedAt!) != today).toList();
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SkinScanComparisonPage(
+          scan: scan,
+          previous: earlier.isEmpty ? null : earlier.last,
+          first: earlier.isEmpty ? null : earlier.first,
+          justScanned: true,
+        ),
+      ),
+    );
   }
 
   Future<void> _performAnalysis() async {
@@ -68,6 +137,11 @@ class _SkinAnalysisProgressPageState extends State<SkinAnalysisProgressPage>
 
     try {
       var result = await GeminiService.analyzeSkin(widget.imagePath);
+
+      if (widget.purpose == ScanPurpose.dailyProgress) {
+        await _finishDailyScan(result);
+        return;
+      }
 
       var saveFailed = false;
       try {
@@ -281,25 +355,28 @@ class _SkinAnalysisProgressPageState extends State<SkinAnalysisProgressPage>
                       ),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 48,
-                    child: OutlinedButton(
-                      onPressed: _useDemoFallback,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.primaryPurple,
-                        side: const BorderSide(color: AppColors.primaryPurple),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                  // Pas de résultats de démo pour un scan quotidien : ils fausseraient la comparaison
+                  if (widget.purpose == ScanPurpose.skinAnalysis) ...[
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: OutlinedButton(
+                        onPressed: _useDemoFallback,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.primaryPurple,
+                          side: const BorderSide(color: AppColors.primaryPurple),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text(
+                          'Preview Demo Results',
+                          style: TextStyle(fontWeight: FontWeight.w600),
                         ),
                       ),
-                      child: const Text(
-                        'Preview Demo Results',
-                        style: TextStyle(fontWeight: FontWeight.w600),
-                      ),
                     ),
-                  ),
+                  ],
                   const SizedBox(height: 10),
                   TextButton(
                     onPressed: () => Navigator.pop(context),

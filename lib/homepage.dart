@@ -7,6 +7,7 @@ import 'questionnaire.dart';
 import 'routine.dart';
 import 'services/gemini_service.dart';
 import 'services/skin_analysis_storage.dart';
+import 'skin_progress.dart';
 import 'skin_result.dart';
 
 class SkinCareHomePage extends StatefulWidget {
@@ -416,6 +417,12 @@ class _SkinCareHomePageState extends State<SkinCareHomePage> {
                   subtitle: 'Track your improvement',
                   icon: Icons.bar_chart,
                   color: AppColors.brandPink,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const SkinProgressPage()),
+                    );
+                  },
                 ),
                 _buildJourneyCard(
                   title: 'Routine',
