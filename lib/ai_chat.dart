@@ -179,7 +179,7 @@ class _AiChatPageState extends State<AiChatPage> {
           borderRadius: BorderRadius.circular(20),
         ),
         child: const Text(
-          "Dr. Zita is typing...",
+          "Dermaly Ai is typing...",
           style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Colors.grey),
         ),
       ),

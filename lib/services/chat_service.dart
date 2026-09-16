@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import '../models/chat_message.dart';
 
@@ -7,15 +8,15 @@ class ChatService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // IMPORTANT: Replace with your actual Gemini API Key
-  static const String _apiKey = '';
+  // Key retrieved safely from .env
+  static String get _apiKey => dotenv.env['GEMINI_API_KEY'] ?? '';
 
   late final GenerativeModel _model;
   ChatSession? _chatSession;
 
   ChatService() {
     _model = GenerativeModel(
-      model: 'gemini-1.5-flash',
+      model: 'gemini-3.5-flash',
       apiKey: _apiKey,
       generationConfig: GenerationConfig(
         temperature: 0.7,
@@ -24,10 +25,12 @@ class ChatService {
         maxOutputTokens: 1024,
       ),
       systemInstruction: Content.system(
-        'You are Dr. Zita, a specialized dermatologist for Dermaly. '
+        'You are Dermaly ai, a specialized dermatologist for Dermaly. '
         'Your goal is to provide expert skincare advice, analyze skin concerns, '
         'and suggest skincare routines. Be professional, empathetic, and encouraging. '
         'Always remind users to consult a doctor in person for severe conditions.'
+            'Answer to all the question asked properly and correctly but do not forget you stay a specialized dermatologist.'
+            'Equally to must speak different language if i write in french do such if in english do etc.'
       ),
     );
   }
