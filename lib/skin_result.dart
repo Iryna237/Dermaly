@@ -80,10 +80,6 @@ class SkinResultPage extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: AppColors.white,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.black),
-          onPressed: () => Navigator.pop(context),
-        ),
         title: const Text(
           'Analysis Result',
           style: TextStyle(color: AppColors.black, fontWeight: FontWeight.bold, fontSize: 18),

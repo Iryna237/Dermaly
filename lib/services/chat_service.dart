@@ -8,14 +8,14 @@ class ChatService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   // IMPORTANT: Replace with your actual Gemini API Key
-  static const String _apiKey = '';
+  static const String _apiKey = 'REDACTED';
 
   late final GenerativeModel _model;
   ChatSession? _chatSession;
 
   ChatService() {
     _model = GenerativeModel(
-      model: 'gemini-1.5-flash',
+      model: 'gemini-3.5-flash',
       apiKey: _apiKey,
       generationConfig: GenerationConfig(
         temperature: 0.7,
