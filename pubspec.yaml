@@ -47,6 +47,7 @@ dependencies:
   firebase_storage: ^13.5.0
   google_generative_ai: ^0.4.7
   intl: ^0.20.3
+  http: ^1.6.0
 
 dependency_overrides:
   permission_handler_android: 13.0.1
@@ -79,6 +80,7 @@ flutter:
   assets:
     - assets/images/
     - assets/platform/
+    - .env
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

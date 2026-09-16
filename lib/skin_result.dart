@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
-import 'routine.dart';
+import 'products.dart';
 import 'services/gemini_service.dart';
 
 class SkinResultPage extends StatelessWidget {
@@ -314,7 +314,7 @@ class SkinResultPage extends StatelessWidget {
                   onPressed: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => const RoutinePage()),
+                      MaterialPageRoute(builder: (context) => const RecommendedProductsPage()),
                     );
                   },
                   style: ElevatedButton.styleFrom(

@@ -1,7 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'ai_chat.dart';
 import 'app_colors.dart';
 import 'pages/profile_page.dart';
 import 'questionnaire.dart';
@@ -385,7 +384,7 @@ class _SkinCareHomePageState extends State<SkinCareHomePage> {
                   title: 'Skin Analysis',
                   subtitle: 'Analyze your skin with AI',
                   icon: Icons.arrow_forward,
-                  color: AppColors.lightPurple,
+                  color: AppColors.white,
                   showBadge: true,
                   onTap: () {
                     Navigator.push(
@@ -414,16 +413,10 @@ class _SkinCareHomePageState extends State<SkinCareHomePage> {
                   },
                 ),
                 _buildJourneyCard(
-                  title: 'Chat with Dermatologist',
+                  title: 'Consult Dermatologist',
                   subtitle: 'Get expert advice',
                   icon: Icons.chat_bubble_outline,
                   color: AppColors.terracotta,
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const AiChatPage()),
-                    );
-                  },
                 ),
               ],
             ),
@@ -511,21 +504,7 @@ class _SkinCareHomePageState extends State<SkinCareHomePage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (showBadge)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: AppColors.white,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Text(
-                  'New',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.terracotta,
-                  ),
-                ),
-              ),
+
             const Spacer(),
             Text(
               title,
