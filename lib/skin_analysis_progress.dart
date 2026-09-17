@@ -35,6 +35,7 @@ class _SkinAnalysisProgressPageState extends State<SkinAnalysisProgressPage>
   Timer? _statusTimer;
   bool _isLoading = true;
   String? _errorMessage;
+  String? _errorTitle;
 
   final List<String> _statusSteps = [
     'Dermaly is analyzing your facial skin...',
@@ -133,6 +134,7 @@ class _SkinAnalysisProgressPageState extends State<SkinAnalysisProgressPage>
     setState(() {
       _isLoading = true;
       _errorMessage = null;
+      _errorTitle = null;
     });
 
     try {
@@ -171,8 +173,12 @@ class _SkinAnalysisProgressPageState extends State<SkinAnalysisProgressPage>
       debugPrint('Analysis error: $e');
       if (!mounted) return;
 
+      // Surcharge passagère de l'IA : ce n'est pas un échec d'analyse, on le dit autrement
+      final busy = e is GeminiException && e.isTransient;
+
       setState(() {
         _isLoading = false;
+        _errorTitle = busy ? 'AI Temporarily Busy' : 'Analysis Error';
         _errorMessage = e.toString().replaceAll('Exception: ', '');
       });
     }
@@ -320,9 +326,9 @@ class _SkinAnalysisProgressPageState extends State<SkinAnalysisProgressPage>
                     size: 48,
                   ),
                   const SizedBox(height: 12),
-                  const Text(
-                    'Analysis Error',
-                    style: TextStyle(
+                  Text(
+                    _errorTitle ?? 'Analysis Error',
+                    style: const TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
                       color: AppColors.darkPurple,

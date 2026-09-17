@@ -135,33 +135,188 @@ class SkinAnalysisResult {
   }
 }
 
+/// Erreur renvoyée par l'API Gemini. Le code HTTP permet de distinguer une panne
+/// passagère (surcharge, quota momentané) d'une vraie erreur de configuration.
+class GeminiException implements Exception {
+  final String message;
+  final int? statusCode;
+
+  const GeminiException(this.message, {this.statusCode});
+
+  /// 429 (quota) et 5xx (surcharge/panne) : une nouvelle tentative a des chances d'aboutir.
+  bool get isTransient =>
+      statusCode == 429 || (statusCode != null && statusCode! >= 500);
+
+  @override
+  String toString() => message;
+}
+
 /// Service class handling communications with the Gemini Multimodal API
 class GeminiService {
   static const String _defaultModel = 'gemini-3.5-flash';
+  static const String _defaultFallbackModels =
+      'gemini-3.6-flash,gemini-3.5-flash-lite';
   static const String _baseUrl =
       'https://generativelanguage.googleapis.com/v1beta/models';
+  static const Duration _requestTimeout = Duration(seconds: 40);
+
+  /// Temps maximum consacré aux nouvelles tentatives : évite de faire patienter
+  /// l'utilisateur plusieurs minutes quand l'API ne repond plus du tout.
+  static const Duration _retryBudget = Duration(seconds: 90);
+
+  /// Pauses entre deux tentatives (backoff exponentiel) sur erreur passagère.
+  static const List<Duration> _retryDelays = [
+    Duration(seconds: 1),
+    Duration(seconds: 2),
+    Duration(seconds: 4),
+  ];
+
+  /// Message montré à l'utilisateur quand tous les modèles restent saturés.
+  static const String _overloadedMessage =
+      'Our AI is very busy right now. Please try again in a few moments.';
+
+  static String _envOrDefault(String key, String fallback) {
+    final value = dotenv.env[key]?.trim();
+    return (value == null || value.isEmpty) ? fallback : value;
+  }
+
+  /// Modèle utilisé en priorité, surchargeable via `GEMINI_MODEL` dans .env
+  static String get model => _envOrDefault('GEMINI_MODEL', _defaultModel);
+
+  /// Modèles essayés si le principal reste indisponible, du plus au moins capable.
+  /// Surchargeable via `GEMINI_FALLBACK_MODEL` (liste séparée par des virgules).
+  static List<String> get fallbackModels => [
+        for (final name
+            in _envOrDefault('GEMINI_FALLBACK_MODEL', _defaultFallbackModels)
+                .split(','))
+          if (name.trim().isNotEmpty) name.trim(),
+      ];
 
   /// Returns the configured API key from .env
-  /// Returns the configured API key from .env
   static String get apiKey {
-    final key = dotenv.env['GEMINI_API_KEY'] ?? '';
-    if (key.trim().isEmpty) {
-      throw Exception(
-        'GEMINI_API_KEY is not configured in your .env file.',
+    final key = dotenv.env['GEMINI_API_KEY']?.trim() ?? '';
+    if (key.isEmpty) {
+      throw const GeminiException(
+        'Gemini API key is not configured. Please set GEMINI_API_KEY in your .env file.',
       );
     }
-    return key.trim();
+    return key;
+  }
+
+  /// Extrait le message d'erreur renvoyé par l'API, sinon le code HTTP.
+  static String _errorMessageFrom(http.Response response) {
+    try {
+      final message = (jsonDecode(response.body))['error']?['message'];
+      if (message is String && message.trim().isNotEmpty) return message.trim();
+    } catch (_) {}
+    return 'HTTP ${response.statusCode}';
+  }
+
+  /// Appelle `generateContent` et renvoie la réponse JSON décodée.
+  ///
+  /// Les erreurs passagères (429/5xx, très fréquentes quand le modèle est saturé)
+  /// sont réessayées avec un backoff exponentiel ; si le modèle principal reste
+  /// indisponible, la requête est rejouée sur les [fallbackModels]. Les autres erreurs
+  /// (clé invalide, modèle inconnu, requête malformée) échouent immédiatement.
+  static Future<Map<String, dynamic>> _generateContent(
+    Map<String, dynamic> payload,
+  ) async {
+    final key = apiKey;
+    final body = jsonEncode(payload);
+    final models = <String>{model, ...fallbackModels};
+
+    GeminiException? lastError;
+    final deadline = DateTime.now().add(_retryBudget);
+
+    attempts:
+    for (final modelName in models) {
+      for (var attempt = 0; attempt <= _retryDelays.length; attempt++) {
+        http.Response? response;
+        try {
+          response = await http
+              .post(
+                Uri.parse('$_baseUrl/$modelName:generateContent'),
+                // Clé dans l'en-tête plutôt que dans l'URL pour qu'elle n'apparaisse pas dans les logs
+                headers: {
+                  'Content-Type': 'application/json',
+                  'x-goog-api-key': key,
+                },
+                body: body,
+              )
+              .timeout(_requestTimeout);
+        } on SocketException {
+          throw const GeminiException(
+            'Network error: please check your internet connection.',
+          );
+        } on TimeoutException {
+          lastError = const GeminiException(
+            'Gemini took too long to respond.',
+            statusCode: 504,
+          );
+        }
+
+        if (response != null) {
+          if (response.statusCode == 200) {
+            return jsonDecode(response.body) as Map<String, dynamic>;
+          }
+
+          debugPrint(
+            'Gemini $modelName error ${response.statusCode}: ${response.body}',
+          );
+          final error = GeminiException(
+            _errorMessageFrom(response),
+            statusCode: response.statusCode,
+          );
+          // Modèle absent ou indisponible pour cette clé : passer au modèle suivant
+          if (error.statusCode == 404) {
+            lastError = error;
+            break;
+          }
+          // Clé invalide, requête refusée... : réessayer ne changera rien
+          if (!error.isTransient) throw error;
+          lastError = error;
+        }
+
+        // Budget épuisé : inutile d'immobiliser l'écran plus longtemps
+        if (!DateTime.now().isBefore(deadline)) break attempts;
+
+        if (attempt < _retryDelays.length) {
+          await Future.delayed(_retryDelays[attempt]);
+        }
+      }
+      debugPrint('Gemini: $modelName still unavailable, trying the next model.');
+    }
+
+    final error = lastError;
+    if (error == null || error.isTransient) {
+      // Tous les modèles sont saturés : message clair plutôt que le jargon de l'API
+      throw GeminiException(_overloadedMessage, statusCode: error?.statusCode);
+    }
+    throw error;
+  }
+
+  /// Concatène le texte des `parts`, en ignorant les parties de réflexion du modèle.
+  static String _textFrom(Map<String, dynamic> responseData) {
+    final candidates = responseData['candidates'] as List?;
+    if (candidates == null || candidates.isEmpty) {
+      throw const GeminiException('Gemini returned no candidates in response.');
+    }
+
+    final content = candidates.first['content'] as Map<String, dynamic>?;
+    final text = [
+      for (final part in content?['parts'] as List? ?? const [])
+        if (part is Map && part['thought'] != true && part['text'] is String)
+          part['text'] as String,
+    ].join().trim();
+
+    if (text.isEmpty) {
+      throw const GeminiException('Gemini returned an empty response.');
+    }
+    return text;
   }
 
   /// Analyzes a facial photo and returns a structured [SkinAnalysisResult]
   static Future<SkinAnalysisResult> analyzeSkin(String imagePath) async {
-    final key = apiKey.trim();
-    if (key.isEmpty) {
-      throw Exception(
-        'Gemini API key is not configured. Please set GEMINI_API_KEY in your .env file.',
-      );
-    }
-
     // 1. Read image bytes (either local file or asset)
     final Uint8List imageBytes;
     final String mimeType;
@@ -219,10 +374,8 @@ Return ONLY a valid JSON object matching this exact format:
 }
 ''';
 
-    // 3. Make HTTP request to Gemini API
-    final url = Uri.parse('$_baseUrl/$_defaultModel:generateContent?key=$key');
-
-    final requestBody = jsonEncode({
+    // 3. Send the request (retries and model fallback handled by _generateContent)
+    final responseData = await _generateContent({
       'contents': [
         {
           'parts': [
@@ -242,62 +395,27 @@ Return ONLY a valid JSON object matching this exact format:
       }
     });
 
+    // 4. Parse Gemini response
+    String cleanJson = _textFrom(responseData);
+
+    // Clean possible markdown code fences (```json ... ```)
+    if (cleanJson.startsWith('```')) {
+      cleanJson = cleanJson
+          .replaceFirst(RegExp(r'^```json\s*'), '')
+          .replaceFirst(RegExp(r'^```\s*'), '')
+          .replaceAll(RegExp(r'\s*```$'), '');
+    }
+
     try {
-      final response = await http
-          .post(
-            url,
-            headers: {'Content-Type': 'application/json'},
-            body: requestBody,
-          )
-          .timeout(const Duration(seconds: 40));
-
-      if (response.statusCode != 200) {
-        debugPrint('Gemini API Error Status: ${response.statusCode}');
-        debugPrint('Gemini API Error Body: ${response.body}');
-        
-        // Parse error message if available
-        String errorMessage = 'HTTP ${response.statusCode}';
-        try {
-          final errJson = jsonDecode(response.body);
-          if (errJson['error']?['message'] != null) {
-            errorMessage = errJson['error']['message'];
-          }
-        } catch (_) {}
-
-        throw Exception('Gemini API Error ($errorMessage)');
-      }
-
-      // 4. Parse Gemini response
-      final Map<String, dynamic> responseData = jsonDecode(response.body);
-      final candidates = responseData['candidates'] as List?;
-      if (candidates == null || candidates.isEmpty) {
-        throw Exception('Gemini returned no candidates in response.');
-      }
-
-      final content = candidates.first['content'] as Map<String, dynamic>?;
-      final parts = content?['parts'] as List?;
-      if (parts == null || parts.isEmpty) {
-        throw Exception('Gemini response contains no parts.');
-      }
-
-      final String rawText = parts.first['text'] as String? ?? '';
-      
-      // Clean possible markdown code fences (```json ... ```)
-      String cleanJson = rawText.trim();
-      if (cleanJson.startsWith('```')) {
-        cleanJson = cleanJson
-            .replaceFirst(RegExp(r'^```json\s*'), '')
-            .replaceFirst(RegExp(r'^```\s*'), '')
-            .replaceAll(RegExp(r'\s*```$'), '');
-      }
-
-      final Map<String, dynamic> parsedJson = jsonDecode(cleanJson);
-      return SkinAnalysisResult.fromJson(parsedJson, imagePath: imagePath);
-    } on SocketException catch (e) {
-      throw Exception('Network error: please check your internet connection ($e)');
-    } catch (e) {
-      debugPrint('Error analyzing skin with Gemini: $e');
-      rethrow;
+      return SkinAnalysisResult.fromJson(
+        jsonDecode(cleanJson) as Map<String, dynamic>,
+        imagePath: imagePath,
+      );
+    } on FormatException catch (e) {
+      debugPrint('Gemini returned invalid JSON: $e\n$cleanJson');
+      throw const GeminiException(
+        'The analysis came back unreadable. Please try again.',
+      );
     }
   }
 
@@ -308,9 +426,7 @@ Return ONLY a valid JSON object matching this exact format:
     String? systemInstruction,
     double temperature = 0.7,
   }) async {
-    final url = Uri.parse('$_baseUrl/$_defaultModel:generateContent');
-
-    final requestBody = jsonEncode({
+    final responseData = await _generateContent({
       if (systemInstruction != null)
         'system_instruction': {
           'parts': [
@@ -321,51 +437,6 @@ Return ONLY a valid JSON object matching this exact format:
       'generationConfig': {'temperature': temperature},
     });
 
-    final http.Response response;
-    try {
-      response = await http
-          .post(
-            url,
-            // Clé dans l'en-tête plutôt que dans l'URL pour qu'elle n'apparaisse pas dans les logs
-            headers: {'Content-Type': 'application/json', 'x-goog-api-key': apiKey},
-            body: requestBody,
-          )
-          .timeout(const Duration(seconds: 40));
-    } on SocketException {
-      throw Exception('Network error: please check your internet connection.');
-    } on TimeoutException {
-      throw Exception('Gemini took too long to respond. Please try again.');
-    }
-
-    if (response.statusCode != 200) {
-      debugPrint('Gemini chat error ${response.statusCode}: ${response.body}');
-
-      String errorMessage = 'HTTP ${response.statusCode}';
-      try {
-        final errJson = jsonDecode(response.body);
-        if (errJson['error']?['message'] != null) {
-          errorMessage = errJson['error']['message'];
-        }
-      } catch (_) {}
-
-      throw Exception('Gemini API Error ($errorMessage)');
-    }
-
-    final Map<String, dynamic> responseData = jsonDecode(response.body);
-    final candidates = responseData['candidates'] as List?;
-    final content = candidates == null || candidates.isEmpty
-        ? null
-        : candidates.first['content'] as Map<String, dynamic>?;
-
-    // Ignorer les éventuelles parties de réflexion du modèle
-    final text = [
-      for (final part in content?['parts'] as List? ?? const [])
-        if (part is Map && part['thought'] != true && part['text'] is String) part['text'] as String,
-    ].join().trim();
-
-    if (text.isEmpty) {
-      throw Exception('Gemini returned an empty response.');
-    }
-    return text;
+    return _textFrom(responseData);
   }
 }

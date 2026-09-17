@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'app_colors.dart';
 import 'models/chat_message.dart';
 import 'services/chat_service.dart';
+import 'services/gemini_service.dart';
 
 class AiChatPage extends StatefulWidget {
   const AiChatPage({super.key});
@@ -40,9 +41,13 @@ class _AiChatPageState extends State<AiChatPage> {
     } catch (e) {
       debugPrint('Erreur chat: $e');
       if (mounted) {
+        final message = e.toString().replaceAll('Exception: ', '');
+        // Surcharge passagère de l'IA : le message se suffit à lui-même
+        final busy = e is GeminiException && e.isTransient;
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Dr. Zita could not answer: ${e.toString().replaceAll('Exception: ', '')}'),
+            content: Text(busy ? message : 'Dr. Zita could not answer: $message'),
             backgroundColor: Colors.red,
           ),
         );
