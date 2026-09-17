@@ -51,10 +51,10 @@ class _AiChatPageState extends State<AiChatPage> {
       appBar: AppBar(
         backgroundColor: const Color(0xFFF7F2EE),
         elevation: 0,
-        leading: IconButton(
+        /*leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new, color: AppColors.darkPurple, size: 20),
           onPressed: () => Navigator.pop(context),
-        ),
+        ),*/
         title: const Text(
           'DERMALY',
           style: TextStyle(

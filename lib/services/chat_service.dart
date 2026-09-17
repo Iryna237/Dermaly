@@ -15,7 +15,7 @@ class ChatService {
 
   ChatService() {
     _model = GenerativeModel(
-      model: 'gemini-3.5-flash',
+      model: 'gemini-3.5-flash-lite',
       apiKey: _apiKey,
       generationConfig: GenerationConfig(
         temperature: 0.7,

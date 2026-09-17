@@ -11,7 +11,7 @@ class MakeSkinAnalysisPage extends StatefulWidget {
   State<MakeSkinAnalysisPage> createState() => _MakeSkinAnalysisPageState();
 }
 
-class _MakeSkinAnalysisPageState extends State<MakeSkinAnalysisPage> with WidgetsBindingObserver {
+class _MakeSkinAnalysisPageState extends State<MakeSkinAnalysisPage> with WidgetsBindingObserver ,SingleTickerProviderStateMixin{
   late AnimationController _scannerController;
   late Animation<double> _scannerAnimation;
   bool _isScanning = false;
@@ -29,19 +29,29 @@ class _MakeSkinAnalysisPageState extends State<MakeSkinAnalysisPage> with Widget
     WidgetsBinding.instance.addObserver(this);
     _initCamera();
 
-    /*_scannerController = AnimationController(
+    _scannerController = AnimationController(
       duration: const Duration(seconds: 2),
       vsync: this,
     )..repeat(reverse: true);
 
     _scannerAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _scannerController, curve: Curves.easeInOut),
-    );*/
+    );
+  }
+
+  void _toggleFlash() {
+    if (_cameraController == null || !_cameraController!.value.isInitialized) return;
+    setState(() {
+      _flashMode = _flashMode == FlashMode.off ? FlashMode.torch : FlashMode.off;
+    });
+    _cameraController!.setFlashMode(_flashMode);
   }
 
   void _switchCamera() {
     if (_cameras == null || _cameras!.length < 2) return;
-    _selectedCameraIndex = (_selectedCameraIndex + 1) % _cameras!.length;
+    setState(() {
+      _selectedCameraIndex = (_selectedCameraIndex + 1) % _cameras!.length;
+    });
     _initCameraController(_cameras![_selectedCameraIndex]);
   }
 
@@ -66,8 +76,10 @@ class _MakeSkinAnalysisPageState extends State<MakeSkinAnalysisPage> with Widget
 
       if (!mounted) return;
 
+      setState(() => _isScanning = false);
+
       // 2. Redirection vers la page de progression en lui passant le chemin de la VRAIE photo
-      Navigator.pushReplacement(
+      Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => SkinAnalysisProgressPage(imagePath: photo.path),
@@ -126,7 +138,8 @@ class _MakeSkinAnalysisPageState extends State<MakeSkinAnalysisPage> with Widget
   @override
   void dispose() {
     _scannerController.dispose();
-    _cameraController!.dispose();
+    _cameraController?.dispose();
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
@@ -181,42 +194,21 @@ class _MakeSkinAnalysisPageState extends State<MakeSkinAnalysisPage> with Widget
               Stack(
                 alignment: Alignment.center,
                 children: [
-                  Container(
+                  SizedBox(
                     //width: 400,
                     height: 420,
-                    decoration: BoxDecoration(
-                      color: AppColors.black.withAlpha(51), // 0.2 * 255
-                      borderRadius: BorderRadius.circular(40),
-                      border: Border.all(color: AppColors.white.withAlpha(128), width: 1.5),
-                    ),
+
                     child: (_cameraController != null &&
                         _cameraController!
                             .value
                             .isInitialized)
-                        ? CameraPreview(_cameraController!) : Image.asset("assets/images/logo.png"),
+                        ? ClipRRect(borderRadius: BorderRadiusGeometry.circular(40),child: CameraPreview(_cameraController!)) : Image.asset("assets/images/logo.png",width: 100,),
                   ),
 
-                 /* Container(
-                    width: 40,
-                    height: 420,
-                    decoration: BoxDecoration(
-                      color: AppColors.black.withAlpha(51), // 0.2 * 255
-                      borderRadius: BorderRadius.circular(40),
-                      border: Border.all(color: AppColors.white.withAlpha(128), width: 1.5),
-                    ),
-                  ),*/
-
-                  // Scanning Brackets
-                  const SizedBox(
-                    width: 310,
-                    height: 430,
-                    child: CustomPaint(painter: ScannerBracketsPainter()),
-                  ),
                   IconButton(onPressed: _switchCamera, icon: Icon(Icons.cameraswitch)),
 
                   // Moving Scan Line
-                  if (_isScanning)
-                    AnimatedBuilder(
+                  if (_cameraController != null && _cameraController!.value.isInitialized)                    AnimatedBuilder(
                       animation: _scannerAnimation,
                       builder: (context, child) {
                         return Positioned(

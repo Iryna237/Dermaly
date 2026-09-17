@@ -137,12 +137,12 @@ class _QuestionnairePageState extends State<QuestionnairePage> {
       appBar: AppBar(
         backgroundColor: AppColors.transparent,
         elevation: 0,
-        leading: IconButton(
+        /*leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new, color: AppColors.darkPurple, size: 20),
           onPressed: () {
            Navigator.pop(context);
           },
-        ),
+        ),*/
         title: Text(
           _currentPage == 0 ? '' : 'Step $_currentPage of 11',
           style: const TextStyle(color: AppColors.greyText, fontSize: 14),

@@ -1,11 +1,10 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 
-/// Service centralisé pour gérer l'authentification et la persistance de session
 class AuthService {
   // Singleton pattern
   static final AuthService _instance = AuthService._internal();
@@ -14,23 +13,15 @@ class AuthService {
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseStorage _storage = FirebaseStorage.instance;
 
-  /// Stream réactif émettant l'utilisateur à chaque changement d'état d'authentification
-  /// (connexion, déconnexion, restauration automatique de session depuis le stockage local)
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
-  /// Utilisateur actuellement connecté (restauré automatiquement par Firebase Auth)
   User? get currentUser => _auth.currentUser;
 
-  /// Vérifie si une session utilisateur est active
   bool get isAuthenticated => _auth.currentUser != null;
 
-  /// Identifiant unique de l'utilisateur connecté
   String? get currentUserId => _auth.currentUser?.uid;
 
-  /// Récupère le prénom ou nom d'affichage de l'utilisateur
-  /// Priorité : FirebaseAuth displayName > Firestore fullName > Email prefix > 'Utilisateur'
   Future<String> getUserFirstName() async {
     final user = _auth.currentUser;
     if (user == null) return 'Utilisateur';
@@ -43,7 +34,9 @@ class AuthService {
       final doc = await _firestore.collection('users').doc(user.uid).get();
       if (doc.exists && doc.data() != null) {
         final data = doc.data()!;
-        final fullName = (data['fullName'] ?? data['name'] ?? '').toString().trim();
+        final fullName = (data['fullName'] ?? data['name'] ?? '')
+            .toString()
+            .trim();
         if (fullName.isNotEmpty) {
           return fullName.split(' ')[0];
         }
@@ -59,7 +52,6 @@ class AuthService {
     return 'Utilisateur';
   }
 
-  /// Récupère le profil complet de l'utilisateur stocké dans Firestore
   Future<Map<String, dynamic>?> getUserProfile() async {
     final user = _auth.currentUser;
     if (user == null) return null;
@@ -75,48 +67,70 @@ class AuthService {
     return null;
   }
 
-  /// Met à jour le profil de l'utilisateur dans Firestore
+  /// Met à jour le profil dans Firestore.
+  /// ⚠️ N'envoie PAS de photoBase64 à FirebaseAuth (limite de longueur).
   Future<void> updateUserProfile(Map<String, dynamic> data) async {
     final user = _auth.currentUser;
     if (user == null) return;
 
     try {
-      await _firestore.collection('users').doc(user.uid).update(data);
-      
-      // Si on met à jour le nom, on le met aussi dans Firebase Auth
-      if (data.containsKey('fullName')) {
-        await user.updateDisplayName(data['fullName']);
+      // Nettoyer : retirer photoBase64/photoUrl avant Firestore pour éviter
+      // de polluer le document ou de déclencher updatePhotoURL
+      final firestoreData = Map<String, dynamic>.from(data);
+
+      // Si on met à jour le nom → Firestore + FirebaseAuth
+      if (firestoreData.containsKey('fullName')) {
+        await user.updateDisplayName(firestoreData['fullName']);
       }
-      if (data.containsKey('photoUrl')) {
-        await user.updatePhotoURL(data['photoUrl']);
+
+      // photoUrl : on l'envoie à FirebaseAuth UNIQUEMENT si court (URL classique)
+      final photoUrl = firestoreData['photoUrl'];
+      if (photoUrl is String && photoUrl.length < 2000) {
+        await user.updatePhotoURL(photoUrl);
       }
+
+      // Écrire dans Firestore (tout, y compris photoBase64)
+      await _firestore.collection('users').doc(user.uid).update(firestoreData);
     } catch (e) {
       debugPrint("Erreur mise à jour profil Firestore: $e");
       rethrow;
     }
   }
 
-  /// Télécharge une image de profil vers Firebase Storage et retourne l'URL
+  /// Encode l'image en base64 et la stocke dans Firestore.
+  /// Retourne la chaîne base64 ou null si l'utilisateur n'est pas connecté.
   Future<String?> uploadProfilePicture(File imageFile) async {
     final user = _auth.currentUser;
     if (user == null) return null;
 
     try {
-      final ref = _storage.ref().child('profile_pics').child('${user.uid}.jpg');
-      await ref.putFile(imageFile);
-      final url = await ref.getDownloadURL();
-      
-      // Mettre à jour le profil avec la nouvelle URL
-      await updateUserProfile({'photoUrl': url});
-      
-      return url;
+      final bytes = await imageFile.readAsBytes();
+
+      // Limite Firestore : 1 MB par document
+      if (bytes.length > 900 * 1024) {
+        debugPrint('❌ Image trop grosse : ${bytes.length} octets');
+        throw Exception(
+          'Image trop lourde (max 900 KB). Choisissez une autre photo.',
+        );
+      }
+
+      final base64String = base64Encode(bytes);
+
+      await _firestore.collection('users').doc(user.uid).update({
+        'photoBase64': base64String,
+        'photoUpdatedAt': FieldValue.serverTimestamp(),
+      });
+
+      debugPrint(
+        '✅ Photo uploadée : ${(bytes.length / 1024).toStringAsFixed(1)} KB',
+      );
+      return base64String;
     } catch (e) {
-      debugPrint("Erreur upload photo de profil: $e");
-      return null;
+      debugPrint("❌ Erreur upload photo de profil: $e");
+      rethrow;
     }
   }
 
-  /// Vérifie la validité de la session en arrière-plan (par exemple si le compte a été supprimé)
   Future<bool> validateSession() async {
     final user = _auth.currentUser;
     if (user == null) return false;
@@ -129,14 +143,12 @@ class AuthService {
         await signOut();
         return false;
       }
-      // Si problème réseau, on conserve la session locale persistée
       return true;
     } catch (_) {
       return true;
     }
   }
 
-  /// Déconnexion de l'utilisateur et suppression de la session persistée
   Future<void> signOut() async {
     try {
       await _auth.signOut();
