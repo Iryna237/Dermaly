@@ -338,7 +338,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         _buildInfoRow(
                           Icons.spa_outlined,
                           'SkinType',
-                          _skinType.isNotEmpty ? _skinType : 'Non défini (Faire le test)',
+                          _skinType.isNotEmpty ? _skinType : 'Not defined (make a test)',
                         ),
                       ],
                     ),
