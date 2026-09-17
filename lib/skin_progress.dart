@@ -8,8 +8,8 @@ import 'services/skin_progress_storage.dart';
 import 'skin_analysis_progress.dart';
 import 'skin_scan_comparison.dart';
 
-/// Skin Progress : suivi quotidien de la peau.
-/// Chaque jour, un scan est comparé au scan précédent et au premier scan
+/// Skin Progress : suivi mensuel de la peau.
+/// Chaque mois, un scan est comparé au scan précédent et au premier scan
 /// pour savoir si les produits utilisés sont efficaces.
 class SkinProgressPage extends StatefulWidget {
   const SkinProgressPage({super.key});
@@ -22,11 +22,11 @@ class _SkinProgressPageState extends State<SkinProgressPage> {
   // Flux créé une seule fois : la page se met à jour toute seule après un nouveau scan
   late final Stream<List<SkinAnalysisResult>> _history = SkinProgressStorage.watchHistory();
 
-  void _startDailyScan() {
+  void _startMonthlyScan() {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const MakeSkinAnalysisPage(purpose: ScanPurpose.dailyProgress),
+        builder: (context) => const MakeSkinAnalysisPage(purpose: ScanPurpose.monthlyProgress),
       ),
     );
   }
@@ -90,10 +90,10 @@ class _SkinProgressPageState extends State<SkinProgressPage> {
   Widget _buildEmptyState() {
     return _buildMessage(
       Icons.show_chart_rounded,
-      'Track your skin every day',
-      'Take a quick face scan each day. Dermaly compares it with your previous scans '
+      'Track your skin every month',
+      'Take a quick face scan once a month. Dermaly compares it with your previous scans '
       'so you can see which skin concerns improve or get worse, and whether your products are working.',
-      action: _buildPrimaryButton("Start today's scan", Icons.camera_alt_rounded),
+      action: _buildPrimaryButton("Start this month's scan", Icons.camera_alt_rounded),
     );
   }
 
@@ -138,7 +138,7 @@ class _SkinProgressPageState extends State<SkinProgressPage> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 10, 20, 30),
       children: [
-        _buildTodayCard(latest),
+        _buildThisMonthCard(latest),
         const SizedBox(height: 15),
         _buildScoreCard(history, previous, first),
         const SizedBox(height: 15),
@@ -147,7 +147,7 @@ class _SkinProgressPageState extends State<SkinProgressPage> {
           iconColor: AppColors.brandPink,
           title: 'Skin Concerns',
           subtitle: previous == null
-              ? 'Scan again tomorrow to compare your concerns'
+              ? 'Scan again next month to compare your concerns'
               : 'Latest scan · lower is better · green = improved, red = worse',
           child: ConcernComparisonTable(scan: latest, previous: previous, first: first),
         ),
@@ -157,9 +157,10 @@ class _SkinProgressPageState extends State<SkinProgressPage> {
     );
   }
 
-  Widget _buildTodayCard(SkinAnalysisResult latest) {
+  Widget _buildThisMonthCard(SkinAnalysisResult latest) {
     final lastScanAt = latest.analyzedAt!;
-    final scannedToday = SkinProgressStorage.dayKey(lastScanAt) == SkinProgressStorage.dayKey(DateTime.now());
+    final scannedThisMonth =
+        SkinProgressStorage.monthKey(lastScanAt) == SkinProgressStorage.monthKey(DateTime.now());
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -180,8 +181,8 @@ class _SkinProgressPageState extends State<SkinProgressPage> {
           Row(
             children: [
               Icon(
-                scannedToday ? Icons.check_circle_rounded : Icons.today_rounded,
-                color: scannedToday ? ProgressDelta.improvedColor : AppColors.terracotta,
+                scannedThisMonth ? Icons.check_circle_rounded : Icons.calendar_month_rounded,
+                color: scannedThisMonth ? ProgressDelta.improvedColor : AppColors.terracotta,
                 size: 28,
               ),
               const SizedBox(width: 12),
@@ -190,13 +191,15 @@ class _SkinProgressPageState extends State<SkinProgressPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      scannedToday ? "Today's scan is done" : "You haven't scanned today",
+                      scannedThisMonth
+                          ? "This month's scan is done"
+                          : "You haven't scanned this month",
                       style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.darkPurple),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      scannedToday
-                          ? 'Scanned at ${formatScanTime(lastScanAt)} · a new scan today will replace it'
+                      scannedThisMonth
+                          ? 'Scanned on ${formatScanDate(lastScanAt)} at ${formatScanTime(lastScanAt)}'
                           : 'Last scan: ${formatScanDate(lastScanAt)}',
                       style: const TextStyle(fontSize: 13, color: AppColors.greyText),
                     ),
@@ -206,22 +209,40 @@ class _SkinProgressPageState extends State<SkinProgressPage> {
             ],
           ),
           const SizedBox(height: 16),
-          scannedToday
-              ? SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: OutlinedButton.icon(
-                    onPressed: _startDailyScan,
-                    icon: const Icon(Icons.refresh_rounded),
-                    label: const Text('Rescan today', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.primaryPurple,
-                      side: const BorderSide(color: AppColors.primaryPurple, width: 1.5),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                    ),
-                  ),
-                )
-              : _buildPrimaryButton('Scan today', Icons.camera_alt_rounded),
+          scannedThisMonth
+              ? _buildLockedNotice(lastScanAt)
+              : _buildPrimaryButton('Scan this month', Icons.camera_alt_rounded),
+        ],
+      ),
+    );
+  }
+
+  /// Un seul scan par mois : une fois le scan du mois fait, le suivant n'est
+  /// possible qu'au mois suivant. Rien ne permet de relancer un scan avant.
+  Widget _buildLockedNotice(DateTime lastScanAt) {
+    final nextScanAt = DateTime(lastScanAt.year, lastScanAt.month + 1, 1);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: AppColors.softPurple,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.lock_outline_rounded, color: AppColors.primaryPurple, size: 22),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Next scan available on ${formatScanDate(nextScanAt)}',
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: AppColors.darkPurple,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -232,7 +253,7 @@ class _SkinProgressPageState extends State<SkinProgressPage> {
       width: double.infinity,
       height: 56,
       child: ElevatedButton.icon(
-        onPressed: _startDailyScan,
+        onPressed: _startMonthlyScan,
         icon: Icon(icon),
         label: Text(label, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
         style: ElevatedButton.styleFrom(
@@ -251,14 +272,14 @@ class _SkinProgressPageState extends State<SkinProgressPage> {
     SkinAnalysisResult? first,
   ) {
     final latest = history.last;
-    // La courbe affiche les 30 derniers scans
-    final recent = history.length > 30 ? history.sublist(history.length - 30) : history;
+    // La courbe affiche les 12 derniers mois
+    final recent = history.length > 12 ? history.sublist(history.length - 12) : history;
 
     return ProgressCard(
       icon: Icons.show_chart_rounded,
       iconColor: AppColors.primaryPurple,
       title: 'Skin Score Evolution',
-      subtitle: '${history.length} ${history.length == 1 ? 'day' : 'days'} tracked',
+      subtitle: '${history.length} ${history.length == 1 ? 'month' : 'months'} tracked',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -311,8 +332,8 @@ class _SkinProgressPageState extends State<SkinProgressPage> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(formatShortDate(recent.first.analyzedAt!), style: const TextStyle(fontSize: 11, color: AppColors.greyText)),
-                  Text(formatShortDate(recent.last.analyzedAt!), style: const TextStyle(fontSize: 11, color: AppColors.greyText)),
+                  Text(formatShortMonth(recent.first.analyzedAt!), style: const TextStyle(fontSize: 11, color: AppColors.greyText)),
+                  Text(formatShortMonth(recent.last.analyzedAt!), style: const TextStyle(fontSize: 11, color: AppColors.greyText)),
                 ],
               ),
             ),
@@ -338,7 +359,7 @@ class _SkinProgressPageState extends State<SkinProgressPage> {
       icon: Icons.history_rounded,
       iconColor: AppColors.terracotta,
       title: 'Scan History',
-      subtitle: 'Tap a day to see its details',
+      subtitle: 'Tap a month to see its details',
       child: Column(
         children: [
           // Du plus récent au plus ancien
@@ -366,12 +387,14 @@ class _SkinProgressPageState extends State<SkinProgressPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    formatScanDate(scan.analyzedAt!),
+                    formatScanMonth(scan.analyzedAt!),
                     style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.darkPurple),
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    index == 0 ? 'Starting point' : formatScanTime(scan.analyzedAt!),
+                    index == 0
+                        ? 'Starting point · ${formatShortDate(scan.analyzedAt!)}'
+                        : 'Scanned on ${formatShortDate(scan.analyzedAt!)}',
                     style: const TextStyle(fontSize: 12, color: AppColors.greyText),
                   ),
                 ],

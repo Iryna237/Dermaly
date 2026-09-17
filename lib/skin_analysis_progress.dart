@@ -10,8 +10,8 @@ import 'skin_scan_comparison.dart';
 
 /// Usage d'un scan :
 /// - [skinAnalysis] : bilan Skin Analysis, écrase la dernière analyse sauvegardée
-/// - [dailyProgress] : scan quotidien Skin Progress, ajouté à l'historique et comparé aux jours précédents
-enum ScanPurpose { skinAnalysis, dailyProgress }
+/// - [monthlyProgress] : scan mensuel Skin Progress, ajouté à l'historique et comparé aux mois précédents
+enum ScanPurpose { skinAnalysis, monthlyProgress }
 
 class SkinAnalysisProgressPage extends StatefulWidget {
   final String imagePath;
@@ -71,8 +71,8 @@ class _SkinAnalysisProgressPageState extends State<SkinAnalysisProgressPage>
       }
     });
 
-    // Scan quotidien : charger l'historique pendant l'analyse Gemini pour comparer dès la fin
-    if (widget.purpose == ScanPurpose.dailyProgress) {
+    // Scan mensuel : charger l'historique pendant l'analyse Gemini pour comparer dès la fin
+    if (widget.purpose == ScanPurpose.monthlyProgress) {
       _historyFuture = _loadHistory();
     }
 
@@ -92,14 +92,14 @@ class _SkinAnalysisProgressPageState extends State<SkinAnalysisProgressPage>
     );
   }
 
-  Future<void> _finishDailyScan(SkinAnalysisResult result) async {
+  Future<void> _finishMonthlyScan(SkinAnalysisResult result) async {
     // Nouvelle tentative si le chargement lancé au début a échoué
     final history = await (_historyFuture ?? _loadHistory()) ?? await _loadHistory() ?? const [];
 
     var scan = result;
     var saveFailed = false;
     try {
-      scan = await SkinProgressStorage.saveTodayScan(result);
+      scan = await SkinProgressStorage.saveMonthScan(result);
     } catch (e) {
       debugPrint('Erreur sauvegarde scan du jour: $e');
       saveFailed = true;
@@ -109,13 +109,13 @@ class _SkinAnalysisProgressPageState extends State<SkinAnalysisProgressPage>
 
     if (saveFailed) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Your daily scan could not be saved.')),
+        const SnackBar(content: Text('Your monthly scan could not be saved.')),
       );
     }
 
-    // Le scan du jour remplace un éventuel scan déjà fait aujourd'hui : on le compare aux jours précédents
-    final today = SkinProgressStorage.dayKey(scan.analyzedAt ?? DateTime.now());
-    final earlier = history.where((s) => SkinProgressStorage.dayKey(s.analyzedAt!) != today).toList();
+    // Le scan du mois remplace un éventuel scan déjà fait ce mois-ci : on le compare aux mois précédents
+    final month = SkinProgressStorage.monthKey(scan.analyzedAt ?? DateTime.now());
+    final earlier = history.where((s) => SkinProgressStorage.monthKey(s.analyzedAt!) != month).toList();
 
     Navigator.pushReplacement(
       context,
@@ -140,8 +140,8 @@ class _SkinAnalysisProgressPageState extends State<SkinAnalysisProgressPage>
     try {
       var result = await GeminiService.analyzeSkin(widget.imagePath);
 
-      if (widget.purpose == ScanPurpose.dailyProgress) {
-        await _finishDailyScan(result);
+      if (widget.purpose == ScanPurpose.monthlyProgress) {
+        await _finishMonthlyScan(result);
         return;
       }
 
@@ -361,7 +361,7 @@ class _SkinAnalysisProgressPageState extends State<SkinAnalysisProgressPage>
                       ),
                     ),
                   ),
-                  // Pas de résultats de démo pour un scan quotidien : ils fausseraient la comparaison
+                  // Pas de résultats de démo pour un scan mensuel : ils fausseraient la comparaison
                   if (widget.purpose == ScanPurpose.skinAnalysis) ...[
                     const SizedBox(height: 12),
                     SizedBox(

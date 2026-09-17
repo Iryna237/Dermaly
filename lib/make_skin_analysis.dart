@@ -168,7 +168,7 @@ class _MakeSkinAnalysisPageState extends State<MakeSkinAnalysisPage>
                       onPressed: () => Navigator.pop(context),
                     ),*/
                     Text(
-                      widget.purpose == ScanPurpose.dailyProgress ? 'Daily Scan' : 'Skin Analysis',
+                      widget.purpose == ScanPurpose.monthlyProgress ? 'Monthly Scan' : 'Skin Analysis',
                       style: TextStyle(
                         color: AppColors.white,
                         fontSize: 20,

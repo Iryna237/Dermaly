@@ -12,6 +12,17 @@ String formatScanDate(DateTime date) => '${_months[date.month - 1]} ${date.day},
 
 String formatShortDate(DateTime date) => '${_months[date.month - 1]} ${date.day}';
 
+const List<String> _monthNames = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+];
+
+/// Mois d'un scan : « September 2026 »
+String formatScanMonth(DateTime date) => '${_monthNames[date.month - 1]} ${date.year}';
+
+/// Mois abrégé : « Sep 2026 »
+String formatShortMonth(DateTime date) => '${_months[date.month - 1]} ${date.year}';
+
 String formatScanTime(DateTime date) {
   final hour = date.hour > 12 ? date.hour - 12 : (date.hour == 0 ? 12 : date.hour);
   final amPm = date.hour >= 12 ? 'PM' : 'AM';
@@ -261,13 +272,13 @@ class ConcernComparisonTable extends StatelessWidget {
   }
 }
 
-/// Résultat d'un scan quotidien comparé au scan précédent et au premier scan
+/// Résultat d'un scan mensuel comparé au scan précédent et au premier scan
 class SkinScanComparisonPage extends StatelessWidget {
   final SkinAnalysisResult scan;
   final SkinAnalysisResult? previous;
   final SkinAnalysisResult? first;
 
-  /// Vrai juste après un scan (sinon : consultation d'un jour de l'historique)
+  /// Vrai juste après un scan (sinon : consultation d'un mois de l'historique)
   final bool justScanned;
 
   const SkinScanComparisonPage({
@@ -294,7 +305,7 @@ class SkinScanComparisonPage extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          justScanned ? 'Daily Scan Result' : 'Scan Details',
+          justScanned ? 'Monthly Scan Result' : 'Scan Details',
           style: const TextStyle(color: AppColors.black, fontWeight: FontWeight.bold, fontSize: 18),
         ),
         centerTitle: true,
@@ -306,7 +317,7 @@ class SkinScanComparisonPage extends StatelessWidget {
           children: [
             const SizedBox(height: 10),
             Text(
-              justScanned ? 'Your skin today ✨' : 'Your skin on ${formatShortDate(analyzedAt)}',
+              justScanned ? 'Your skin this month ✨' : 'Your skin in ${formatShortMonth(analyzedAt)}',
               style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.black),
             ),
             const SizedBox(height: 5),
@@ -321,7 +332,7 @@ class SkinScanComparisonPage extends StatelessWidget {
               _buildInfoBanner(
                 Icons.flag_rounded,
                 'This is your first progress scan and your starting point. '
-                'Scan again tomorrow to see how your skin evolves.',
+                'Scan again next month to see how your skin evolves.',
               )
             else
               _buildChangesSummary(previousScan),
@@ -500,7 +511,7 @@ class SkinScanComparisonPage extends StatelessWidget {
         children: [
           Expanded(child: _buildPhotoColumn(firstScan, 'First scan')),
           const SizedBox(width: 12),
-          Expanded(child: _buildPhotoColumn(scan, justScanned ? 'Today' : 'This scan')),
+          Expanded(child: _buildPhotoColumn(scan, justScanned ? 'This month' : 'This scan')),
         ],
       ),
     );
