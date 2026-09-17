@@ -36,6 +36,8 @@ class _SkinAnalysisProgressPageState extends State<SkinAnalysisProgressPage>
   bool _isLoading = true;
   String? _errorMessage;
   String? _errorTitle;
+  // Photo sans visage : réessayer avec la même photo ne servirait à rien
+  bool _noFaceDetected = false;
 
   final List<String> _statusSteps = [
     'Dermaly is analyzing your facial skin...',
@@ -135,6 +137,7 @@ class _SkinAnalysisProgressPageState extends State<SkinAnalysisProgressPage>
       _isLoading = true;
       _errorMessage = null;
       _errorTitle = null;
+      _noFaceDetected = false;
     });
 
     try {
@@ -173,12 +176,18 @@ class _SkinAnalysisProgressPageState extends State<SkinAnalysisProgressPage>
       debugPrint('Analysis error: $e');
       if (!mounted) return;
 
+      final noFace = e is NoFaceDetectedException;
       // Surcharge passagère de l'IA : ce n'est pas un échec d'analyse, on le dit autrement
-      final busy = e is GeminiException && e.isTransient;
+      final busy = !noFace && e is GeminiException && e.isTransient;
 
       setState(() {
         _isLoading = false;
-        _errorTitle = busy ? 'AI Temporarily Busy' : 'Analysis Error';
+        _noFaceDetected = noFace;
+        _errorTitle = noFace
+            ? 'No Face Detected'
+            : busy
+                ? 'AI Temporarily Busy'
+                : 'Analysis Error';
         _errorMessage = e.toString().replaceAll('Exception: ', '');
       });
     }
@@ -320,8 +329,10 @@ class _SkinAnalysisProgressPageState extends State<SkinAnalysisProgressPage>
                     ),
                   ),
                 ] else ...[
-                  const Icon(
-                    Icons.error_outline_rounded,
+                  Icon(
+                    _noFaceDetected
+                        ? Icons.face_retouching_off_rounded
+                        : Icons.error_outline_rounded,
                     color: AppColors.terracotta,
                     size: 48,
                   ),
@@ -349,9 +360,12 @@ class _SkinAnalysisProgressPageState extends State<SkinAnalysisProgressPage>
                     width: double.infinity,
                     height: 48,
                     child: ElevatedButton.icon(
-                      onPressed: _performAnalysis,
-                      icon: const Icon(Icons.refresh),
-                      label: const Text('Retry Analysis'),
+                      // Relancer l'analyse sur une photo sans visage redonnerait la même erreur
+                      onPressed: _noFaceDetected
+                          ? () => Navigator.pop(context)
+                          : _performAnalysis,
+                      icon: Icon(_noFaceDetected ? Icons.camera_alt_rounded : Icons.refresh),
+                      label: Text(_noFaceDetected ? 'Take Another Photo' : 'Retry Analysis'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primaryPurple,
                         foregroundColor: AppColors.white,
@@ -361,8 +375,9 @@ class _SkinAnalysisProgressPageState extends State<SkinAnalysisProgressPage>
                       ),
                     ),
                   ),
-                  // Pas de résultats de démo pour un scan mensuel : ils fausseraient la comparaison
-                  if (widget.purpose == ScanPurpose.skinAnalysis) ...[
+                  // Pas de résultats de démo pour un scan mensuel ni pour une photo
+                  // sans visage : ils fausseraient la comparaison ou le diagnostic
+                  if (widget.purpose == ScanPurpose.skinAnalysis && !_noFaceDetected) ...[
                     const SizedBox(height: 12),
                     SizedBox(
                       width: double.infinity,
@@ -383,11 +398,13 @@ class _SkinAnalysisProgressPageState extends State<SkinAnalysisProgressPage>
                       ),
                     ),
                   ],
-                  const SizedBox(height: 10),
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Back to Camera'),
-                  ),
+                  if (!_noFaceDetected) ...[
+                    const SizedBox(height: 10),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Back to Camera'),
+                    ),
+                  ],
                 ],
               ],
             ),

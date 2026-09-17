@@ -151,6 +151,12 @@ class GeminiException implements Exception {
   String toString() => message;
 }
 
+/// Photo inutilisable : aucun visage humain exploitable dessus.
+/// L'utilisateur doit reprendre une photo, réessayer avec la même ne sert à rien.
+class NoFaceDetectedException extends GeminiException {
+  const NoFaceDetectedException(super.message);
+}
+
 /// Service class handling communications with the Gemini Multimodal API
 class GeminiService {
   static const String _defaultModel = 'gemini-3.5-flash';
@@ -340,7 +346,20 @@ class GeminiService {
     // 2. Prepare structured system prompt for Gemini
     const prompt = '''
 You are a certified professional dermatologist and skincare expert AI for Dermaly.
-Carefully examine this facial image and perform a detailed skin diagnosis.
+
+STEP 1 - Check whether the image can be used at all.
+It is usable ONLY if it shows the skin of a real, living human face, photographed
+directly, close enough, sharp enough and lit well enough to judge the skin.
+It is NOT usable if it shows anything else (an object, an animal, a landscape, text,
+a body part other than a face), a drawing, a cartoon, a 3D render, a photo of a screen
+or of a printed picture, a face fully covered by a mask, or a face too dark, too
+blurry, too small or too far away to assess the skin.
+Judge only what is in the image: never assume a face is there because you were asked
+for a skin analysis.
+If the image is NOT usable, reply with ONLY this JSON object and nothing else:
+{"faceDetected": false, "reason": "<one short sentence naming what the image shows instead>"}
+
+STEP 2 - Only if the image IS usable, perform a detailed skin diagnosis.
 
 Evaluate the following metrics:
 1. overallScore: An overall skin health score from 0 to 100 (where 100 is flawless health).
@@ -358,6 +377,7 @@ Evaluate the following metrics:
 
 Return ONLY a valid JSON object matching this exact format:
 {
+  "faceDetected": true,
   "overallScore": 78,
   "hydrationLevel": 68,
   "skinType": "Combination Skin",
@@ -406,17 +426,31 @@ Return ONLY a valid JSON object matching this exact format:
           .replaceAll(RegExp(r'\s*```$'), '');
     }
 
+    const unreadable = GeminiException(
+      'The analysis came back unreadable. Please try again.',
+    );
+
+    final Object? parsed;
     try {
-      return SkinAnalysisResult.fromJson(
-        jsonDecode(cleanJson) as Map<String, dynamic>,
-        imagePath: imagePath,
-      );
+      parsed = jsonDecode(cleanJson);
     } on FormatException catch (e) {
-      debugPrint('Gemini returned invalid JSON: $e\n$cleanJson');
-      throw const GeminiException(
-        'The analysis came back unreadable. Please try again.',
+      debugPrint('Gemini returned invalid JSON: $e');
+      throw unreadable;
+    }
+    if (parsed is! Map<String, dynamic>) throw unreadable;
+
+    // Gemini valide la photo avant de diagnostiquer. Strict : sans `faceDetected: true`
+    // explicite, on refuse plutôt que d'inventer un diagnostic sur une photo
+    // qui ne montre pas de visage
+    if (parsed['faceDetected'] != true) {
+      debugPrint('Gemini rejected the photo: ${parsed['reason']}');
+      throw const NoFaceDetectedException(
+        'We could not find a face to analyze in this photo. Take a new one with '
+        'your whole face visible, centered, close to the camera and well lit.',
       );
     }
+
+    return SkinAnalysisResult.fromJson(parsed, imagePath: imagePath);
   }
 
   /// Envoie une conversation à Gemini et retourne le texte de la réponse (utilisé par le chat).
