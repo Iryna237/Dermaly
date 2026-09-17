@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
+import 'make_skin_analysis.dart';
 import 'services/gemini_service.dart';
 import 'services/skin_analysis_storage.dart';
 import 'services/skin_progress_storage.dart';
@@ -119,7 +120,8 @@ class _SkinAnalysisProgressPageState extends State<SkinAnalysisProgressPage>
     final month = SkinProgressStorage.monthKey(scan.analyzedAt ?? DateTime.now());
     final earlier = history.where((s) => SkinProgressStorage.monthKey(s.analyzedAt!) != month).toList();
 
-    Navigator.pushReplacement(
+    // Retirer caméra et progression de la pile : le retour ramène à l'accueil
+    Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(
         builder: (context) => SkinScanComparisonPage(
@@ -129,6 +131,7 @@ class _SkinAnalysisProgressPageState extends State<SkinAnalysisProgressPage>
           justScanned: true,
         ),
       ),
+      (route) => route.isFirst,
     );
   }
 
@@ -191,6 +194,21 @@ class _SkinAnalysisProgressPageState extends State<SkinAnalysisProgressPage>
         _errorMessage = e.toString().replaceAll('Exception: ', '');
       });
     }
+  }
+
+  /// Retour à la caméra restée sous la page de progression. Si la pile ne permet
+  /// pas de dépiler, on ouvre une caméra neuve plutôt que de vider la pile.
+  void _backToCamera() {
+    if (Navigator.canPop(context)) {
+      Navigator.pop(context);
+      return;
+    }
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => MakeSkinAnalysisPage(purpose: widget.purpose),
+      ),
+    );
   }
 
   void _useDemoFallback() {
@@ -361,9 +379,7 @@ class _SkinAnalysisProgressPageState extends State<SkinAnalysisProgressPage>
                     height: 48,
                     child: ElevatedButton.icon(
                       // Relancer l'analyse sur une photo sans visage redonnerait la même erreur
-                      onPressed: _noFaceDetected
-                          ? () => Navigator.pop(context)
-                          : _performAnalysis,
+                      onPressed: _noFaceDetected ? _backToCamera : _performAnalysis,
                       icon: Icon(_noFaceDetected ? Icons.camera_alt_rounded : Icons.refresh),
                       label: Text(_noFaceDetected ? 'Take Another Photo' : 'Retry Analysis'),
                       style: ElevatedButton.styleFrom(
@@ -401,7 +417,7 @@ class _SkinAnalysisProgressPageState extends State<SkinAnalysisProgressPage>
                   if (!_noFaceDetected) ...[
                     const SizedBox(height: 10),
                     TextButton(
-                      onPressed: () => Navigator.pop(context),
+                      onPressed: _backToCamera,
                       child: const Text('Back to Camera'),
                     ),
                   ],

@@ -72,8 +72,11 @@ class _MakeSkinAnalysisPageState extends State<MakeSkinAnalysisPage>
 
       if (!mounted) return;
 
-      // 2. Redirection vers la page de progression en lui passant le chemin de la VRAIE photo
-      Navigator.pushReplacement(
+      // 2. Page de progression empilée AU-DESSUS de la caméra (pushReplacement
+      //    remplacerait l'onglet Scan, donc tout le ScreenManage, et un retour
+      //    depuis l'analyse dépilerait la dernière route : écran noir).
+      //    Les écrans de résultat retirent ensuite la caméra de la pile.
+      Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => SkinAnalysisProgressPage(imagePath: photo.path, purpose: widget.purpose),
