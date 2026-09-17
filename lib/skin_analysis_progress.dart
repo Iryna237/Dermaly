@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
 import 'services/gemini_service.dart';
@@ -67,6 +69,19 @@ class _SkinAnalysisProgressPageState extends State<SkinAnalysisProgressPage>
 
     try {
       final result = await GeminiService.analyzeSkin(widget.imagePath);
+
+      // Save to Firestore
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid != null) {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .collection('analyses')
+            .add({
+              ...result.toJson(),
+              'timestamp': FieldValue.serverTimestamp(),
+            });
+      }
 
       if (!mounted) return;
 
