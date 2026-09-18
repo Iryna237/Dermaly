@@ -1,6 +1,10 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+
 import 'app_colors.dart';
 import 'appointments.dart';
 import 'chat_derma.dart';
@@ -13,7 +17,8 @@ class DermatologistDashboard extends StatefulWidget {
   const DermatologistDashboard({super.key, this.doctorName = 'Iryna'});
 
   @override
-  State<DermatologistDashboard> createState() => _DermatologistDashboardState();
+  State<DermatologistDashboard> createState() =>
+      _DermatologistDashboardState();
 }
 
 class _DermatologistDashboardState extends State<DermatologistDashboard> {
@@ -38,9 +43,7 @@ class _DermatologistDashboardState extends State<DermatologistDashboard> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.white,
-      body: SafeArea(
-        child: _pages[_currentIndex],
-      ),
+      body: SafeArea(child: _pages[_currentIndex]),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: AppColors.white,
@@ -53,17 +56,64 @@ class _DermatologistDashboardState extends State<DermatologistDashboard> {
           backgroundColor: AppColors.white,
           selectedItemColor: AppColors.primaryPurple,
           unselectedItemColor: AppColors.greyText,
-          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+          selectedLabelStyle:
+          const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
           unselectedLabelStyle: const TextStyle(fontSize: 12),
           items: const [
-            BottomNavigationBarItem(icon: Icon(Icons.grid_view_rounded), label: 'Home'),
-            BottomNavigationBarItem(icon: Icon(Icons.people_alt_outlined), label: 'Patients'),
-            BottomNavigationBarItem(icon: Icon(Icons.calendar_today_rounded), label: 'Appts'),
-            BottomNavigationBarItem(icon: Icon(Icons.chat_bubble_outline_rounded), label: 'Chat'),
-            BottomNavigationBarItem(icon: Icon(Icons.person_outline_rounded), label: 'Profile'),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.grid_view_rounded), label: 'Home'),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.people_alt_outlined), label: 'Patients'),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.calendar_today_rounded), label: 'Appts'),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.chat_bubble_outline_rounded), label: 'Chat'),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.person_outline_rounded), label: 'Profile'),
           ],
         ),
       ),
+    );
+  }
+
+  // ✅ Avatar temps réel basé sur le document Firestore
+  Widget _buildHeaderAvatar() {
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .doc(_uid)
+          .snapshots(),
+      builder: (context, snapshot) {
+        Uint8List? bytes;
+
+        if (snapshot.hasData && snapshot.data!.exists) {
+          final data = snapshot.data!.data() as Map<String, dynamic>?;
+          final base64Str = data?['photoBase64'] as String?;
+          if (base64Str != null && base64Str.isNotEmpty) {
+            try {
+              bytes = base64Decode(base64Str);
+            } catch (e) {
+              debugPrint('Erreur décodage photo header: $e');
+            }
+          }
+        }
+
+        return CircleAvatar(
+          radius: 20,
+          backgroundColor: AppColors.lightPurple,
+          backgroundImage: bytes != null ? MemoryImage(bytes) : null,
+          child: bytes == null
+              ? Text(
+            widget.doctorName.substring(0, 2).toUpperCase(),
+            style: const TextStyle(
+              color: AppColors.primaryPurple,
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+            ),
+          )
+              : null,
+        );
+      },
     );
   }
 
@@ -91,27 +141,20 @@ class _DermatologistDashboardState extends State<DermatologistDashboard> {
                   const SizedBox(height: 4),
                   const Text(
                     'Here\'s your dermatology overview today.',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: AppColors.greyText,
-                    ),
+                    style:
+                    TextStyle(fontSize: 14, color: AppColors.greyText),
                   ),
                 ],
               ),
               Row(
                 children: [
-                  CircleAvatar(
-                    radius: 20,
-                    backgroundColor: AppColors.lightPurple,
-                    child: Text(
-                      widget.doctorName.substring(0, 2).toUpperCase(),
-                      style: const TextStyle(color: AppColors.primaryPurple, fontWeight: FontWeight.bold, fontSize: 14),
-                    ),
-                  ),
+                  // ✅ Avatar avec photo
+                  _buildHeaderAvatar(),
                   const SizedBox(width: 12),
                   Stack(
                     children: [
-                      const Icon(Icons.notifications_none_rounded, size: 28, color: AppColors.terracotta),
+                      const Icon(Icons.notifications_none_rounded,
+                          size: 28, color: AppColors.terracotta),
                       Positioned(
                         right: 4,
                         top: 4,
@@ -132,7 +175,7 @@ class _DermatologistDashboardState extends State<DermatologistDashboard> {
           ),
           const SizedBox(height: 30),
 
-          // Summary Grid with Real Data
+          // Summary Grid
           LayoutBuilder(
             builder: (context, constraints) {
               double cardWidth = (constraints.maxWidth - 15) / 2;
@@ -140,14 +183,14 @@ class _DermatologistDashboardState extends State<DermatologistDashboard> {
                 spacing: 15,
                 runSpacing: 15,
                 children: [
-                  // Total Patients Stream
                   StreamBuilder<QuerySnapshot>(
                     stream: FirebaseFirestore.instance
                         .collection('users')
                         .where('role', isEqualTo: 'client')
                         .snapshots(),
                     builder: (context, snapshot) {
-                      final count = snapshot.hasData ? snapshot.data!.docs.length : 0;
+                      final count =
+                      snapshot.hasData ? snapshot.data!.docs.length : 0;
                       return GestureDetector(
                         onTap: () => setState(() => _currentIndex = 1),
                         child: _buildSummaryCard(
@@ -160,14 +203,14 @@ class _DermatologistDashboardState extends State<DermatologistDashboard> {
                       );
                     },
                   ),
-                  // Upcoming Appointments Stream
                   StreamBuilder<QuerySnapshot>(
                     stream: FirebaseFirestore.instance
                         .collection('appointments')
                         .where('doctorId', isEqualTo: _uid)
                         .snapshots(),
                     builder: (context, snapshot) {
-                      final count = snapshot.hasData ? snapshot.data!.docs.length : 0;
+                      final count =
+                      snapshot.hasData ? snapshot.data!.docs.length : 0;
                       return _buildSummaryCard(
                         'Upcoming appts',
                         count.toString(),
@@ -177,16 +220,16 @@ class _DermatologistDashboardState extends State<DermatologistDashboard> {
                       );
                     },
                   ),
-                  // Unread Messages Stream
                   StreamBuilder<QuerySnapshot>(
                     stream: FirebaseFirestore.instance
                         .collection('users')
                         .doc(_uid)
                         .collection('messages')
-                        .where('sender', isEqualTo: 'user') // Count AI responses or new user messages
+                        .where('sender', isEqualTo: 'user')
                         .snapshots(),
                     builder: (context, snapshot) {
-                      final count = snapshot.hasData ? snapshot.data!.docs.length : 0;
+                      final count =
+                      snapshot.hasData ? snapshot.data!.docs.length : 0;
                       return GestureDetector(
                         onTap: () => setState(() => _currentIndex = 3),
                         child: _buildSummaryCard(
@@ -205,7 +248,7 @@ class _DermatologistDashboardState extends State<DermatologistDashboard> {
           ),
           const SizedBox(height: 35),
 
-          // Today's Appointments Section with Real Data
+          // Today's appointments
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -237,9 +280,9 @@ class _DermatologistDashboardState extends State<DermatologistDashboard> {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
               }
-              
+
               final docs = snapshot.data?.docs ?? [];
-              
+
               if (docs.isEmpty) {
                 return Container(
                   width: double.infinity,
@@ -251,7 +294,9 @@ class _DermatologistDashboardState extends State<DermatologistDashboard> {
                   child: const Center(
                     child: Text(
                       'No appointments scheduled for today',
-                      style: TextStyle(color: AppColors.greyText, fontStyle: FontStyle.italic),
+                      style: TextStyle(
+                          color: AppColors.greyText,
+                          fontStyle: FontStyle.italic),
                     ),
                   ),
                 );
@@ -275,7 +320,8 @@ class _DermatologistDashboardState extends State<DermatologistDashboard> {
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   itemCount: docs.length,
-                  separatorBuilder: (context, index) => const Divider(height: 30, color: AppColors.softGrey),
+                  separatorBuilder: (context, index) => const Divider(
+                      height: 30, color: AppColors.softGrey),
                   itemBuilder: (context, index) {
                     final data = docs[index].data() as Map<String, dynamic>;
                     return _buildAppointmentItem(
@@ -294,7 +340,8 @@ class _DermatologistDashboardState extends State<DermatologistDashboard> {
     );
   }
 
-  Widget _buildSummaryCard(String title, String value, IconData icon, Color color, double width) {
+  Widget _buildSummaryCard(
+      String title, String value, IconData icon, Color color, double width) {
     return Container(
       width: width,
       padding: const EdgeInsets.all(20),
@@ -344,30 +391,21 @@ class _DermatologistDashboardState extends State<DermatologistDashboard> {
         Expanded(
           child: RichText(
             text: TextSpan(
-              style: const TextStyle(fontSize: 15, color: AppColors.darkPurple),
+              style: const TextStyle(
+                  fontSize: 15, color: AppColors.darkPurple),
               children: [
-                TextSpan(text: patient, style: const TextStyle(fontWeight: FontWeight.bold)),
+                TextSpan(
+                    text: patient,
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
                 const TextSpan(text: ' — '),
                 TextSpan(text: type),
               ],
             ),
           ),
         ),
-        const Icon(Icons.chevron_right_rounded, color: AppColors.softGrey, size: 20),
+        const Icon(Icons.chevron_right_rounded,
+            color: AppColors.softGrey, size: 20),
       ],
-    );
-  }
-
-  Widget _buildPlaceholderPage(String title) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.construction_rounded, size: 64, color: AppColors.softGrey),
-          const SizedBox(height: 16),
-          Text('$title coming soon...', style: const TextStyle(color: AppColors.greyText, fontSize: 16)),
-        ],
-      ),
     );
   }
 }

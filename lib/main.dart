@@ -1,6 +1,7 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:ziskin/tool/seed_admin.dart';
 import 'app_colors.dart';
 import 'auth_gate.dart';
 import 'firebase_options.dart';
@@ -17,6 +18,9 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  //await seedAdminIfNeeded();
+
 
   runApp(const MyApp());
 }

@@ -131,6 +131,54 @@ class AuthService {
     }
   }
 
+  /// Upload un document (image) en base64 dans Firestore.
+  /// Compression pour respecter la limite de 1 Mo de Firestore.
+  Future<String?> uploadVerificationDocument(File imageFile) async {
+    final user = _auth.currentUser;
+    if (user == null) return null;
+
+    try {
+      final bytes = await imageFile.readAsBytes();
+
+      // Limite Firestore : ~1 Mo par document. On garde une marge.
+      if (bytes.length > 900 * 1024) {
+        // Compresser l'image si elle est trop lourde
+        final compressed = await _compressImage(imageFile);
+        if (compressed != null) {
+          return await _storeBase64(user.uid, compressed);
+        }
+        throw Exception(
+          'Document trop lourd (max 900 KB). Choisissez un fichier plus léger.',
+        );
+      }
+
+      return await _storeBase64(user.uid, bytes);
+    } catch (e) {
+      debugPrint("❌ Erreur upload document: $e");
+      rethrow;
+    }
+  }
+
+  Future<String> _storeBase64(String uid, Uint8List bytes) async {
+    final base64String = base64Encode(bytes);
+    await _firestore.collection('users').doc(uid).update({
+      'professionalDocBase64': base64String,
+      'professionalDocUpdatedAt': FieldValue.serverTimestamp(),
+    });
+    debugPrint('✅ Document uploadé: ${(bytes.length / 1024).toStringAsFixed(1)} KB');
+    return base64String;
+  }
+
+  /// Compression basique avec image_picker (quality) — nécessite repick
+  /// ou utiliser le package `image` si tu veux vraiment compresser.
+  Future<Uint8List?> _compressImage(File file) async {
+    // Option simple : re-picker avec qualité réduite n'est pas possible ici.
+    // On peut utiliser package:image pour redimensionner.
+    // Pour l'instant, on renvoie null pour forcer l'utilisateur à choisir
+    // une image plus petite, OU on ajoute le package `image`.
+    return null;
+  }
+
   Future<bool> validateSession() async {
     final user = _auth.currentUser;
     if (user == null) return false;
