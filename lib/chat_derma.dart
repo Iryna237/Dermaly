@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'app_colors.dart';
 import 'models/chat_message.dart';
 import 'services/chat_service.dart';
+import 'services/gemini_service.dart';
 import 'user_avatar.dart';
 
 class DermatologistChatListPage extends StatefulWidget {
@@ -170,6 +171,16 @@ class _DermaDetailedChatPageState extends State<DermaDetailedChatPage> {
   final String _myId = FirebaseAuth.instance.currentUser?.uid ?? '';
   bool _isTyping = false;
 
+  // Flux créé une seule fois : le recréer à chaque build relance la lecture Firestore
+  late final Stream<List<ChatMessage>> _messages =
+      widget.isAi ? _chatService.getMessages() : _getPeerMessages();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -195,7 +206,7 @@ class _DermaDetailedChatPageState extends State<DermaDetailedChatPage> {
         children: [
           Expanded(
             child: StreamBuilder<List<ChatMessage>>(
-              stream: widget.isAi ? _chatService.getMessages() : _getPeerMessages(),
+              stream: _messages,
               builder: (context, snapshot) {
                 final messages = snapshot.data ?? [];
                 return ListView.builder(
@@ -299,13 +310,32 @@ class _DermaDetailedChatPageState extends State<DermaDetailedChatPage> {
 
   void _send() async {
     final text = _controller.text.trim();
-    if (text.isEmpty) return;
+    // Bloquer le double envoi pendant que l'IA répond
+    if (text.isEmpty || _isTyping) return;
     _controller.clear();
 
     if (widget.isAi) {
       setState(() => _isTyping = true);
-      await _chatService.sendMessage(text);
-      setState(() => _isTyping = false);
+      try {
+        await _chatService.sendMessage(text);
+      } catch (e) {
+        // L'erreur est montrée au dermatologue, pas enregistrée comme une réponse de l'IA
+        debugPrint('Erreur chat: $e');
+        if (mounted) {
+          final message = e.toString().replaceAll('Exception: ', '');
+          // Surcharge passagère de l'IA : le message se suffit à lui-même
+          final busy = e is GeminiException && e.isTransient;
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(busy ? message : 'The AI could not answer: $message'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      } finally {
+        if (mounted) setState(() => _isTyping = false);
+      }
     } else {
       final String chatId = _myId.compareTo(widget.patientId) < 0
           ? '${_myId}_${widget.patientId}'
@@ -403,7 +433,7 @@ class _DermaDetailedChatPageState extends State<DermaDetailedChatPage> {
                             Text('${e.value}%', style: const TextStyle(fontWeight: FontWeight.w600)),
                           ],
                         ),
-                      )).toList(),
+                      )),
 
                       const SizedBox(height: 25),
                       const Text('Clinical Summary:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
