@@ -6,10 +6,13 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'ai_chat.dart';
 import 'app_colors.dart';
+import 'models/app_notification.dart';
+import 'notifications_page.dart';
 import 'pages/profile_page.dart';
 import 'questionnaire.dart';
 import 'routine.dart';
 import 'services/gemini_service.dart';
+import 'services/notification_log.dart';
 import 'services/skin_analysis_storage.dart';
 import 'skin_progress.dart';
 import 'skin_result.dart';
@@ -34,6 +37,9 @@ class _SkinCareHomePageState extends State<SkinCareHomePage> {
   String _displayName = '';
   String? _photoUrl;
   Uint8List? _photoBytes;
+
+  // Flux créé une seule fois : le recréer à chaque build relance la lecture Firestore
+  late final Stream<List<AppNotification>> _notifications = NotificationLog.watch();
   bool _isOpeningAnalysis = false;
 
   /// Première analyse : questionnaire puis scan.
@@ -168,25 +174,8 @@ class _SkinCareHomePageState extends State<SkinCareHomePage> {
         ),
         actions: [
           Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                const Icon(Icons.notifications_none, color: AppColors.terracotta, size: 28),
-                Positioned(
-                  top: 12,
-                  right: 4,
-                  child: Container(
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(
-                      color: AppColors.brandPink,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+            padding: const EdgeInsets.only(right: 8.0),
+            child: _buildNotificationBell(),
           ),
         ],
       ),
@@ -545,6 +534,45 @@ class _SkinCareHomePageState extends State<SkinCareHomePage> {
           ],
         ),
       ),
+    );
+  }
+
+  /// Cloche de l'accueil : le point ne s'affiche que s'il reste des
+  /// notifications non lues, et disparaît dès que la page les a marquées lues.
+  Widget _buildNotificationBell() {
+    return StreamBuilder<List<AppNotification>>(
+      stream: _notifications,
+      builder: (context, snapshot) {
+        final unread = snapshot.data?.where((n) => !n.read).length ?? 0;
+
+        return IconButton(
+          tooltip: 'Notifications',
+          icon: Stack(
+            alignment: Alignment.center,
+            clipBehavior: Clip.none,
+            children: [
+              const Icon(Icons.notifications_none, color: AppColors.terracotta, size: 28),
+              if (unread > 0)
+                Positioned(
+                  top: 2,
+                  right: 2,
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: AppColors.brandPink,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const NotificationsPage()),
+          ),
+        );
+      },
     );
   }
 

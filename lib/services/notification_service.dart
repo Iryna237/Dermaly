@@ -4,6 +4,7 @@ import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
 import '../models/routine_product.dart';
+import 'notification_log.dart';
 import 'routine_storage.dart';
 import 'skin_progress_storage.dart';
 
@@ -93,24 +94,49 @@ class NotificationService {
   static Future<void> refreshSchedules() async {
     try {
       await init();
-      await _refreshRoutineReminders();
-      await _refreshMonthlyScanReminder();
+
+      // Une seule lecture de chaque source, partagée entre la programmation des
+      // rappels et le journal affiché derrière la cloche
+      final routine = await _loadRoutine();
+      final scannedThisMonth = await _hasScannedThisMonth();
+
+      await _refreshRoutineReminders(routine?.products);
+      await _refreshMonthlyScanReminder(scannedThisMonth);
+
+      await NotificationLog.syncDue(
+        routine: routine?.products,
+        routineSince: routine?.updatedAt,
+        scannedThisMonth: scannedThisMonth,
+      );
     } catch (e) {
       // Un rappel manquant ne doit jamais empêcher l'app de fonctionner
       debugPrint('Erreur programmation des rappels: $e');
     }
   }
 
-  /// Rappels de routine : seulement si l'utilisateur a des produits à appliquer.
-  static Future<void> _refreshRoutineReminders() async {
-    List<RoutineProduct>? routine;
+  static Future<({List<RoutineProduct> products, DateTime? updatedAt})?> _loadRoutine() async {
     try {
-      routine = await RoutineStorage.load();
+      return await RoutineStorage.loadSaved();
     } catch (e) {
       debugPrint('Erreur chargement routine pour les rappels: $e');
-      return;
+      return null;
     }
+  }
 
+  static Future<bool> _hasScannedThisMonth() async {
+    try {
+      final history = await SkinProgressStorage.loadHistory();
+      return history.isNotEmpty &&
+          SkinProgressStorage.monthKey(history.last.analyzedAt!) ==
+              SkinProgressStorage.monthKey(DateTime.now());
+    } catch (e) {
+      debugPrint('Erreur chargement historique pour le rappel de scan: $e');
+      return false;
+    }
+  }
+
+  /// Rappels de routine : seulement si l'utilisateur a des produits à appliquer.
+  static Future<void> _refreshRoutineReminders(List<RoutineProduct>? routine) async {
     final morning = routine?.where((p) => p.isMorning).length ?? 0;
     final evening = routine?.where((p) => p.isEvening).length ?? 0;
 
@@ -143,19 +169,8 @@ class NotificationService {
   }
 
   /// Rappel du scan mensuel, le 1er du prochain mois où le scan reste à faire.
-  static Future<void> _refreshMonthlyScanReminder() async {
+  static Future<void> _refreshMonthlyScanReminder(bool scannedThisMonth) async {
     final now = DateTime.now();
-    bool scannedThisMonth = false;
-    try {
-      final history = await SkinProgressStorage.loadHistory();
-      scannedThisMonth = history.isNotEmpty &&
-          SkinProgressStorage.monthKey(history.last.analyzedAt!) ==
-              SkinProgressStorage.monthKey(now);
-    } catch (e) {
-      debugPrint('Erreur chargement historique pour le rappel de scan: $e');
-      return;
-    }
-
     final firstOfNextMonth = DateTime(now.year, now.month + 1, 1, scanHour);
 
     final DateTime when;
