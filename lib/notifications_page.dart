@@ -84,9 +84,11 @@ class _NotificationsPageState extends State<NotificationsPage> {
   }
 
   Widget _buildTile(AppNotification notification) {
-    final icon = notification.isScan
-        ? Icons.camera_alt_rounded
-        : (notification.isMorning ? Icons.wb_sunny_rounded : Icons.nights_stay_rounded);
+    final icon = notification.isMessage
+        ? Icons.chat_bubble_rounded
+        : notification.isScan
+            ? Icons.camera_alt_rounded
+            : (notification.isMorning ? Icons.wb_sunny_rounded : Icons.nights_stay_rounded);
 
     return Container(
       padding: const EdgeInsets.all(16),

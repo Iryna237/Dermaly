@@ -3,6 +3,7 @@ import 'package:ziskin/ai_chat.dart';
 import 'package:ziskin/app_colors.dart';
 import 'package:ziskin/homepage.dart';
 import 'package:ziskin/make_skin_analysis.dart';
+import 'package:ziskin/services/message_notifier.dart';
 import 'package:ziskin/services/notification_service.dart';
 import 'package:ziskin/skin_progress.dart';
 
@@ -26,6 +27,14 @@ class _ScreenManageState extends State<ScreenManage> {
     // Rappels reprogrammes a chaque ouverture : ils suivent l'etat reel de la
     // routine et du scan du mois, et survivent ainsi a un redemarrage du telephone
     NotificationService.refreshSchedules();
+    // Prévient le patient des messages de son dermatologue tant que l'app tourne
+    MessageNotifier.start();
+  }
+
+  @override
+  void dispose() {
+    MessageNotifier.stop();
+    super.dispose();
   }
 
   @override

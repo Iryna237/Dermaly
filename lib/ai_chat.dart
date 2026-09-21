@@ -9,6 +9,7 @@ import 'models/consultation.dart';
 import 'request_consultation.dart';
 import 'services/consultation_service.dart';
 import 'services/gemini_service.dart';
+import 'services/message_notifier.dart';
 import 'user_avatar.dart';
 
 class ClientChatListPage extends StatefulWidget {
@@ -287,7 +288,17 @@ class _DetailedChatPageState extends State<DetailedChatPage> {
       widget.isAi ? _chatService.getMessages() : _getPeerMessages();
 
   @override
+  void initState() {
+    super.initState();
+    // Lire une conversation vaut notification : pas de bannière pendant ce temps
+    if (!widget.isAi && widget.peerId != null) {
+      MessageNotifier.openChatId = MessageNotifier.chatIdFor(_myId, widget.peerId!);
+    }
+  }
+
+  @override
   void dispose() {
+    MessageNotifier.openChatId = null;
     _messageController.dispose();
     super.dispose();
   }

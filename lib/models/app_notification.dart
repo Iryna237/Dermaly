@@ -18,8 +18,11 @@ class AppNotification {
     this.read = false,
   });
 
-  /// Vrai pour un rappel de scan mensuel, faux pour un rappel de routine
+  /// Vrai pour un rappel de scan mensuel
   bool get isScan => id.startsWith('scan_');
+
+  /// Vrai pour un message reçu d'un dermatologue
+  bool get isMessage => id.startsWith('message_');
 
   /// Vrai pour un rappel du matin (sert à choisir l'icône)
   bool get isMorning => id.startsWith('routine_morning');

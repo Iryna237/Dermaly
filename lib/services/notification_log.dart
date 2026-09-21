@@ -52,6 +52,27 @@ class NotificationLog {
     await SkinAnalysisStorage.writeWithTimeout(batch.commit());
   }
 
+  /// Ajoute [notification] si son identifiant est inconnu.
+  ///
+  /// Retourne vrai uniquement quand l'entrée vient d'être créée : l'appelant
+  /// s'en sert pour n'afficher la bannière qu'une fois, même après redémarrage
+  /// de l'application.
+  static Future<bool> addIfMissing(AppNotification notification) async {
+    final collection = _collection();
+    if (collection == null) return false;
+
+    try {
+      final doc = collection.doc(notification.id);
+      if ((await doc.get()).exists) return false;
+
+      await SkinAnalysisStorage.writeWithTimeout(doc.set(notification.toJson()));
+      return true;
+    } catch (e) {
+      debugPrint('Erreur journalisation de la notification: $e');
+      return false;
+    }
+  }
+
   /// Journalise les rappels dont l'heure est passée et qui manquent encore.
   ///
   /// [routine] et [routineSince] décrivent la routine enregistrée : aucun rappel

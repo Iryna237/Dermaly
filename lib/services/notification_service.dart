@@ -42,6 +42,14 @@ class NotificationService {
     priority: Priority.defaultPriority,
   );
 
+  static const AndroidNotificationDetails _messageChannel = AndroidNotificationDetails(
+    'message_alerts',
+    'Messages',
+    channelDescription: 'New messages from your dermatologist',
+    importance: Importance.high,
+    priority: Priority.high,
+  );
+
   /// Heures des rappels de routine
   static const int morningHour = 8;
   static const int eveningHour = 21;
@@ -87,6 +95,29 @@ class NotificationService {
       }
     }
     return 'UTC';
+  }
+
+  /// Affiche une notification tout de suite, sans programmation.
+  /// Utilisée à l'arrivée d'un message : l'heure n'est pas connue à l'avance.
+  static Future<void> showNow({
+    required int id,
+    required String title,
+    required String body,
+  }) async {
+    try {
+      await init();
+      await _plugin.show(
+        id: id,
+        title: title,
+        body: body,
+        notificationDetails: const NotificationDetails(
+          android: _messageChannel,
+          iOS: DarwinNotificationDetails(),
+        ),
+      );
+    } catch (e) {
+      debugPrint('Erreur affichage notification: $e');
+    }
   }
 
   /// Reprogramme les deux familles de rappels d'après l'état de l'utilisateur.
