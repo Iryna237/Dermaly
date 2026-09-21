@@ -1,10 +1,29 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
+import 'models/consultation.dart';
+import 'services/consultation_service.dart';
 import 'user_avatar.dart';
 
-class PatientsPage extends StatelessWidget {
+/// Patients du dermatologue connecté : uniquement ceux dont la demande de
+/// consultation a été acceptée, comme dans sa messagerie.
+class PatientsPage extends StatefulWidget {
   const PatientsPage({super.key});
+
+  @override
+  State<PatientsPage> createState() => _PatientsPageState();
+}
+
+class _PatientsPageState extends State<PatientsPage> {
+  // Flux créés une seule fois : les recréer à chaque build relance les lectures
+  late final Stream<List<Consultation>> _consultations =
+      ConsultationService.watchForDermatologist();
+
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _clients =
+      FirebaseFirestore.instance
+          .collection('users')
+          .where('role', isEqualTo: 'client')
+          .snapshots();
 
   @override
   Widget build(BuildContext context) {
@@ -25,29 +44,72 @@ class PatientsPage extends StatelessWidget {
           ),
         ],
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('users')
-            .where('role', isEqualTo: 'client')
-            .snapshots(),
+      body: StreamBuilder<List<Consultation>>(
+        stream: _consultations,
+        builder: (context, consultationSnapshot) {
+          if (consultationSnapshot.hasError) {
+            return _buildMessage('Unable to load your patients.\n'
+                '${consultationSnapshot.error}');
+          }
+          if (!consultationSnapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          // Seules les consultations acceptées donnent accès au dossier
+          final acceptedIds = {
+            for (final consultation in consultationSnapshot.data!)
+              if (consultation.isAccepted) consultation.patientId,
+          };
+
+          if (acceptedIds.isEmpty) {
+            return _buildMessage(
+              'No patient yet.\nAccept a consultation request to see a patient here.',
+            );
+          }
+
+          return _buildPatientList(acceptedIds);
+        },
+      ),
+    );
+  }
+
+  Widget _buildMessage(String message) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(40),
+        child: Text(
+          message,
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: AppColors.greyText, fontSize: 13, height: 1.5),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPatientList(Set<String> acceptedIds) {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream: _clients,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final patients = snapshot.data?.docs ?? [];
+          // Filtrage côté application : les identifiants acceptés dépassent vite
+          // la limite de 30 valeurs d'un whereIn Firestore
+          final patients = (snapshot.data?.docs ?? []).where((doc) {
+            final uid = (doc.data()['uid'] as Object?)?.toString() ?? doc.id;
+            return acceptedIds.contains(uid);
+          }).toList();
 
           if (patients.isEmpty) {
-            return const Center(
-              child: Text('No patients found', style: TextStyle(color: AppColors.greyText)),
-            );
+            return _buildMessage('No patients found');
           }
 
           return ListView.builder(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
             itemCount: patients.length,
             itemBuilder: (context, index) {
-              final data = patients[index].data() as Map<String, dynamic>;
+              final data = patients[index].data();
               final name = data['fullName'] ?? 'Anonymous Patient';
               final email = data['email'] ?? '';
               final photo = userAvatarImage(data);
@@ -91,9 +153,7 @@ class PatientsPage extends StatelessWidget {
               );
             },
           );
-        },
-      ),
-    );
+        });
   }
 }
 
