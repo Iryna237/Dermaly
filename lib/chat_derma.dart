@@ -384,26 +384,71 @@ class _DermaDetailedChatPageState extends State<DermaDetailedChatPage> {
     }
   }
 
+  /// Dernière analyse du patient, prise là où elle existe réellement.
+  ///
+  /// Trois emplacements, du plus récent au plus ancien dans l'histoire de
+  /// l'application : le champ `lastSkinAnalysis` du profil, le dernier scan
+  /// mensuel, puis la collection `analyses`. Aucun n'est garanti : un patient
+  /// peut n'avoir fait que des scans mensuels, ou aucune analyse du tout.
+  Future<({Map<String, dynamic> data, DateTime? date})?> _loadLatestAnalysis() async {
+    final patient = FirebaseFirestore.instance.collection('users').doc(widget.patientId);
+
+    try {
+      final profile = await patient.get();
+      final last = profile.data()?['lastSkinAnalysis'];
+      if (last is Map) {
+        final data = Map<String, dynamic>.from(last);
+        return (data: data, date: _analysisDate(data['analyzedAt']));
+      }
+
+      final scans = await patient
+          .collection('skinScans')
+          .orderBy('analyzedAt', descending: true)
+          .limit(1)
+          .get();
+      if (scans.docs.isNotEmpty) {
+        final data = scans.docs.first.data();
+        return (data: data, date: _analysisDate(data['analyzedAt']));
+      }
+
+      final analyses = await patient
+          .collection('analyses')
+          .orderBy('timestamp', descending: true)
+          .limit(1)
+          .get();
+      if (analyses.docs.isNotEmpty) {
+        final data = analyses.docs.first.data();
+        return (data: data, date: _analysisDate(data['timestamp']));
+      }
+    } catch (e) {
+      debugPrint('Erreur chargement analyse du patient: $e');
+    }
+
+    return null;
+  }
+
+  /// La date est un entier pour le stockage local, un Timestamp côté serveur
+  static DateTime? _analysisDate(Object? raw) {
+    if (raw is int) return DateTime.fromMillisecondsSinceEpoch(raw);
+    if (raw is Timestamp) return raw.toDate();
+    return null;
+  }
+
   void _showSkinAnalysisSummary(BuildContext context) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
       builder: (context) {
-        return FutureBuilder<QuerySnapshot>(
-          future: FirebaseFirestore.instance
-              .collection('users')
-              .doc(widget.patientId)
-              .collection('analyses')
-              .orderBy('timestamp', descending: true)
-              .limit(1)
-              .get(),
+        return FutureBuilder<({Map<String, dynamic> data, DateTime? date})?>(
+          future: _loadLatestAnalysis(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const SizedBox(height: 300, child: Center(child: CircularProgressIndicator()));
             }
 
-            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+            final result = snapshot.data;
+            if (result == null) {
               return Container(
                 padding: const EdgeInsets.all(40),
                 child: const Column(
@@ -417,7 +462,7 @@ class _DermaDetailedChatPageState extends State<DermaDetailedChatPage> {
               );
             }
 
-            final analysis = snapshot.data!.docs.first.data() as Map<String, dynamic>;
+            final analysis = result.data;
             final overallScore = analysis['overallScore'] ?? 0;
             final skinType = analysis['skinType'] ?? 'Unknown';
             final summary = analysis['recommendationSummary'] ?? 'No details available.';
@@ -445,6 +490,13 @@ class _DermaDetailedChatPageState extends State<DermaDetailedChatPage> {
                       ),
                       const SizedBox(height: 25),
                       Text('Skin Analysis: ${widget.patientName}', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.darkPurple)),
+                      const SizedBox(height: 4),
+                      Text(
+                        result.date == null
+                            ? 'Date unknown'
+                            : 'Analyzed on ${DateFormat('MMM d, y').format(result.date!)}',
+                        style: const TextStyle(fontSize: 13, color: AppColors.greyText),
+                      ),
                       const SizedBox(height: 25),
                       
                       _buildSummaryStat('Overall Score', '$overallScore%', AppColors.primaryPurple),
