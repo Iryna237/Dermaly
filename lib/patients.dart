@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
+import 'user_avatar.dart';
 
 class PatientsPage extends StatelessWidget {
   const PatientsPage({super.key});
@@ -49,7 +50,7 @@ class PatientsPage extends StatelessWidget {
               final data = patients[index].data() as Map<String, dynamic>;
               final name = data['fullName'] ?? 'Anonymous Patient';
               final email = data['email'] ?? '';
-              final photoUrl = data['photoUrl'];
+              final photo = userAvatarImage(data);
               final uid = data['uid'];
 
               return Container(
@@ -72,8 +73,8 @@ class PatientsPage extends StatelessWidget {
                   leading: CircleAvatar(
                     radius: 25,
                     backgroundColor: AppColors.lightPurple,
-                    backgroundImage: photoUrl != null ? NetworkImage(photoUrl) : null,
-                    child: photoUrl == null ? const Icon(Icons.person, color: AppColors.primaryPurple) : null,
+                    backgroundImage: photo,
+                    child: photo == null ? const Icon(Icons.person, color: AppColors.primaryPurple) : null,
                   ),
                   title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkPurple)),
                   subtitle: Text(email, style: const TextStyle(fontSize: 12, color: AppColors.greyText)),

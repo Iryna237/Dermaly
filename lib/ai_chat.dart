@@ -6,6 +6,7 @@ import 'app_colors.dart';
 import 'models/chat_message.dart';
 import 'services/chat_service.dart';
 import 'services/gemini_service.dart';
+import 'user_avatar.dart';
 
 class ClientChatListPage extends StatefulWidget {
   const ClientChatListPage({super.key});
@@ -79,7 +80,7 @@ class _ClientChatListPageState extends State<ClientChatListPage> {
                     return _buildChatTile(
                       name: 'Dr. ${data['fullName'] ?? 'Expert'}',
                       subtitle: 'Clinical Dermatology',
-                      photoUrl: data['photoUrl'],
+                      photo: userAvatarImage(data),
                       onTap: () {
                         Navigator.push(
                           context,
@@ -106,7 +107,7 @@ class _ClientChatListPageState extends State<ClientChatListPage> {
   Widget _buildChatTile({
     required String name,
     required String subtitle,
-    String? photoUrl,
+    ImageProvider? photo,
     bool isAi = false,
     required VoidCallback onTap,
   }) {
@@ -123,8 +124,8 @@ class _ClientChatListPageState extends State<ClientChatListPage> {
         leading: CircleAvatar(
           radius: 25,
           backgroundColor: isAi ? AppColors.primaryPurple : AppColors.lightPurple,
-          backgroundImage: photoUrl != null ? NetworkImage(photoUrl) : null,
-          child: photoUrl == null 
+          backgroundImage: photo,
+          child: photo == null
               ? Icon(isAi ? Icons.auto_awesome : Icons.person, color: Colors.white)
               : null,
         ),
@@ -156,6 +157,7 @@ class DetailedChatPage extends StatefulWidget {
 class _DetailedChatPageState extends State<DetailedChatPage> {
   final TextEditingController _messageController = TextEditingController();
   final ChatService _chatService = ChatService();
+  final String _myId = FirebaseAuth.instance.currentUser?.uid ?? '';
   bool _isTyping = false;
 
   // Flux créé une seule fois : le recréer à chaque build relance la lecture Firestore
@@ -198,7 +200,12 @@ class _DetailedChatPageState extends State<DetailedChatPage> {
                   itemCount: messages.length,
                   itemBuilder: (context, index) {
                     final msg = messages[index];
-                    final isMe = msg.sender == MessageSender.user;
+                    // Face à un dermatologue, les deux côtés écrivent sender 'user' :
+                    // seul senderId dit qui a parlé. Les messages antérieurs à son
+                    // ajout n'en ont pas et gardent l'affichage d'origine.
+                    final isMe = widget.isAi
+                        ? msg.sender == MessageSender.user
+                        : msg.senderId == null || msg.senderId == _myId;
 
                     return _buildChatBubble(msg.text, isMe, msg.timestamp);
                   },
@@ -218,9 +225,9 @@ class _DetailedChatPageState extends State<DetailedChatPage> {
   }
 
   Stream<List<ChatMessage>> _getPeerMessages() {
-    final String myId = FirebaseAuth.instance.currentUser?.uid ?? '';
     final String peerId = widget.peerId!;
-    final String chatId = myId.compareTo(peerId) < 0 ? '${myId}_$peerId' : '${peerId}_$myId';
+    final String chatId =
+        _myId.compareTo(peerId) < 0 ? '${_myId}_$peerId' : '${peerId}_$_myId';
 
     return FirebaseFirestore.instance
         .collection('chats')
@@ -314,9 +321,9 @@ class _DetailedChatPageState extends State<DetailedChatPage> {
         if (mounted) setState(() => _isTyping = false);
       }
     } else {
-      final String myId = FirebaseAuth.instance.currentUser?.uid ?? '';
       final String peerId = widget.peerId!;
-      final String chatId = myId.compareTo(peerId) < 0 ? '${myId}_$peerId' : '${peerId}_$myId';
+      final String chatId =
+          _myId.compareTo(peerId) < 0 ? '${_myId}_$peerId' : '${peerId}_$_myId';
 
       await FirebaseFirestore.instance
           .collection('chats')
@@ -325,6 +332,7 @@ class _DetailedChatPageState extends State<DetailedChatPage> {
           .add({
             'text': text,
             'sender': 'user',
+            'senderId': _myId,
             'timestamp': FieldValue.serverTimestamp(),
           });
           
@@ -332,7 +340,7 @@ class _DetailedChatPageState extends State<DetailedChatPage> {
       await FirebaseFirestore.instance.collection('chats').doc(chatId).set({
         'lastMessage': text,
         'timestamp': FieldValue.serverTimestamp(),
-        'participants': [myId, peerId],
+        'participants': [_myId, peerId],
       }, SetOptions(merge: true));
     }
   }

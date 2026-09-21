@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'app_colors.dart';
 import 'models/chat_message.dart';
 import 'services/chat_service.dart';
+import 'user_avatar.dart';
 
 class DermatologistChatListPage extends StatefulWidget {
   const DermatologistChatListPage({super.key});
@@ -69,7 +70,7 @@ class _DermatologistChatListPageState extends State<DermatologistChatListPage> {
                     return _buildChatTile(
                       name: data['fullName'] ?? 'Patient',
                       subtitle: 'Click to start consultation',
-                      photoUrl: data['photoUrl'],
+                      photo: userAvatarImage(data),
                       onTap: () {
                         Navigator.push(
                           context,
@@ -97,7 +98,6 @@ class _DermatologistChatListPageState extends State<DermatologistChatListPage> {
     return _buildChatTile(
       name: 'Dermaly AI Assistant',
       subtitle: 'Ask AI for medical advice & research',
-      photoUrl: null,
       isAi: true,
       onTap: () {
         Navigator.push(
@@ -117,7 +117,7 @@ class _DermatologistChatListPageState extends State<DermatologistChatListPage> {
   Widget _buildChatTile({
     required String name,
     required String subtitle,
-    String? photoUrl,
+    ImageProvider? photo,
     bool isAi = false,
     required VoidCallback onTap,
   }) {
@@ -134,8 +134,8 @@ class _DermatologistChatListPageState extends State<DermatologistChatListPage> {
         leading: CircleAvatar(
           radius: 25,
           backgroundColor: isAi ? AppColors.primaryPurple : AppColors.lightPurple,
-          backgroundImage: photoUrl != null ? NetworkImage(photoUrl) : null,
-          child: photoUrl == null 
+          backgroundImage: photo,
+          child: photo == null
               ? Icon(isAi ? Icons.auto_awesome : Icons.person, color: Colors.white)
               : null,
         ),
@@ -167,6 +167,7 @@ class DermaDetailedChatPage extends StatefulWidget {
 class _DermaDetailedChatPageState extends State<DermaDetailedChatPage> {
   final TextEditingController _controller = TextEditingController();
   final ChatService _chatService = ChatService();
+  final String _myId = FirebaseAuth.instance.currentUser?.uid ?? '';
   bool _isTyping = false;
 
   @override
@@ -203,10 +204,13 @@ class _DermaDetailedChatPageState extends State<DermaDetailedChatPage> {
                   itemCount: messages.length,
                   itemBuilder: (context, index) {
                     final msg = messages[index];
-                    bool isMe = msg.sender == MessageSender.user;
-                    if (!widget.isAi && msg.sender == MessageSender.ai) isMe = false; 
-                    // Simple logic for now: user is always right-aligned in this view's context
-                    
+                    // Face à un patient, les deux côtés écrivent sender 'user' :
+                    // seul senderId dit qui a parlé. Les messages antérieurs à son
+                    // ajout n'en ont pas et gardent l'affichage d'origine.
+                    final isMe = widget.isAi
+                        ? msg.sender == MessageSender.user
+                        : msg.senderId == null || msg.senderId == _myId;
+
                     return _buildBubble(msg.text, isMe, msg.timestamp);
                   },
                 );
@@ -225,10 +229,9 @@ class _DermaDetailedChatPageState extends State<DermaDetailedChatPage> {
   }
 
   Stream<List<ChatMessage>> _getPeerMessages() {
-    final String myId = FirebaseAuth.instance.currentUser?.uid ?? '';
-    final String chatId = myId.compareTo(widget.patientId) < 0 
-        ? '${myId}_${widget.patientId}' 
-        : '${widget.patientId}_$myId';
+    final String chatId = _myId.compareTo(widget.patientId) < 0
+        ? '${_myId}_${widget.patientId}'
+        : '${widget.patientId}_$_myId';
 
     return FirebaseFirestore.instance
         .collection('chats')
@@ -304,10 +307,9 @@ class _DermaDetailedChatPageState extends State<DermaDetailedChatPage> {
       await _chatService.sendMessage(text);
       setState(() => _isTyping = false);
     } else {
-      final String myId = FirebaseAuth.instance.currentUser?.uid ?? '';
-      final String chatId = myId.compareTo(widget.patientId) < 0 
-          ? '${myId}_${widget.patientId}' 
-          : '${widget.patientId}_$myId';
+      final String chatId = _myId.compareTo(widget.patientId) < 0
+          ? '${_myId}_${widget.patientId}'
+          : '${widget.patientId}_$_myId';
 
       await FirebaseFirestore.instance
           .collection('chats')
@@ -315,7 +317,8 @@ class _DermaDetailedChatPageState extends State<DermaDetailedChatPage> {
           .collection('messages')
           .add({
             'text': text,
-            'sender': 'user', // In derma chat, 'user' means the one who initiated sending
+            'sender': 'user',
+            'senderId': _myId,
             'timestamp': FieldValue.serverTimestamp(),
           });
     }
