@@ -7,6 +7,7 @@ import 'models/chat_message.dart';
 import 'models/consultation.dart';
 import 'services/chat_service.dart';
 import 'services/consultation_service.dart';
+import 'services/message_notifier.dart';
 import 'services/gemini_service.dart';
 import 'user_avatar.dart';
 
@@ -288,7 +289,17 @@ class _DermaDetailedChatPageState extends State<DermaDetailedChatPage> {
       widget.isAi ? _chatService.getMessages() : _getPeerMessages();
 
   @override
+  void initState() {
+    super.initState();
+    // Lire une conversation vaut notification : pas de bannière pendant ce temps
+    if (!widget.isAi) {
+      MessageNotifier.openChatId = MessageNotifier.chatIdFor(_myId, widget.patientId);
+    }
+  }
+
+  @override
   void dispose() {
+    MessageNotifier.openChatId = null;
     _controller.dispose();
     super.dispose();
   }

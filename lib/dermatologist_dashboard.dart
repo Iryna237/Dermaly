@@ -11,6 +11,8 @@ import 'chat_derma.dart';
 import 'derma_profil.dart';
 import 'pages/profile_page.dart';
 import 'patients.dart';
+import 'services/message_notifier.dart';
+import 'services/notification_service.dart';
 
 class DermatologistDashboard extends StatefulWidget {
   final String doctorName;
@@ -30,6 +32,10 @@ class _DermatologistDashboardState extends State<DermatologistDashboard> {
   @override
   void initState() {
     super.initState();
+    // Permission demandée à l'ouverture plutôt qu'au premier message reçu
+    NotificationService.init();
+    MessageNotifier.start(asDermatologist: true);
+
     _pages = [
       _buildHomeContent(),
       const PatientsPage(),
@@ -37,6 +43,12 @@ class _DermatologistDashboardState extends State<DermatologistDashboard> {
       const DermatologistChatListPage(),
       const DermatologistProfilePage(),
     ];
+  }
+
+  @override
+  void dispose() {
+    MessageNotifier.stop();
+    super.dispose();
   }
 
   @override

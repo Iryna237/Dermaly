@@ -10,7 +10,8 @@ import 'consultation_service.dart';
 import 'notification_log.dart';
 import 'notification_service.dart';
 
-/// Prévient le patient quand son dermatologue lui écrit.
+/// Prévient d'un nouveau message dans une consultation : le patient quand son
+/// dermatologue lui écrit, le dermatologue quand un patient lui écrit.
 ///
 /// Une notification locale ne peut être déclenchée que par l'application :
 /// l'écoute ne vit donc que tant que l'app tourne. Les messages reçus pendant
@@ -21,6 +22,9 @@ import 'notification_service.dart';
 /// Messaging et un backend pour l'émettre.
 class MessageNotifier {
   static StreamSubscription<List<Consultation>>? _consultations;
+
+  /// Sens de l'écoute : change l'interlocuteur à surveiller et le nom affiché
+  static bool _asDermatologist = false;
   static final Map<String, StreamSubscription<QuerySnapshot<Map<String, dynamic>>>>
       _chats = {};
 
@@ -36,15 +40,28 @@ class MessageNotifier {
 
   /// Commence à surveiller les consultations acceptées de l'utilisateur.
   /// Appeler plusieurs fois est sans effet : l'écoute existante est reprise.
-  static void start() {
+  static void start({bool asDermatologist = false}) {
     if (_consultations != null) return;
     if (_uid == null) return;
 
-    _consultations = ConsultationService.watchForPatient().listen(
+    _asDermatologist = asDermatologist;
+    final consultations = asDermatologist
+        ? ConsultationService.watchForDermatologist()
+        : ConsultationService.watchForPatient();
+
+    _consultations = consultations.listen(
       _syncChats,
       onError: (Object e) => debugPrint('Erreur écoute des consultations: $e'),
     );
   }
+
+  /// Interlocuteur à surveiller dans une consultation
+  static String _peerId(Consultation consultation) =>
+      _asDermatologist ? consultation.patientId : consultation.dermatologistId;
+
+  /// Nom affiché en titre de la notification
+  static String _peerName(Consultation consultation) =>
+      _asDermatologist ? consultation.patientName : consultation.dermatologistName;
 
   /// Arrête toutes les écoutes (déconnexion, fermeture de l'espace client)
   static void stop() {
@@ -65,7 +82,7 @@ class MessageNotifier {
     final accepted = {
       for (final consultation in consultations)
         if (consultation.isAccepted)
-          chatIdFor(uid, consultation.dermatologistId): consultation,
+          chatIdFor(uid, _peerId(consultation)): consultation,
     };
 
     // Consultations retirées ou refusées : on cesse de les écouter
@@ -116,7 +133,7 @@ class MessageNotifier {
     // Identifiant déterministe : un même message n'est jamais journalisé deux fois
     final notification = AppNotification(
       id: 'message_${chatId}_${date.millisecondsSinceEpoch}',
-      title: consultation.dermatologistName,
+      title: _peerName(consultation),
       body: text.isEmpty ? 'Sent you a message.' : text,
       date: date,
     );
