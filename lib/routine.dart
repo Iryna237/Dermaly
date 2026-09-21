@@ -1,21 +1,7 @@
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
-
-class RoutineProduct {
-  final String category;
-  final String name;
-  final String description;
-  final IconData icon;
-  final String imagePath;
-
-  RoutineProduct({
-    required this.category,
-    required this.name,
-    required this.description,
-    required this.icon,
-    required this.imagePath,
-  });
-}
+import 'models/routine_product.dart';
+import 'services/routine_storage.dart';
 
 class RoutinePage extends StatefulWidget {
   const RoutinePage({super.key});
@@ -28,43 +14,59 @@ class _RoutinePageState extends State<RoutinePage> {
   bool isMorning = true;
   int _currentIndex = 2; // Routine is the center item
 
-  final List<RoutineProduct> morningProducts = [
+  bool _isLoading = true;
+  List<RoutineProduct> _products = _sampleRoutine;
+
+  /// Routine d'exemple affichee tant que l'utilisateur n'a pas lance d'analyse
+  static const List<RoutineProduct> _sampleRoutine = [
     RoutineProduct(
       category: 'Cleanse',
       name: 'Foaming Cleanser',
       description: 'Gentle foaming cleanser with niacinamide and ceramides to regulate oil.',
-      icon: Icons.bubble_chart_outlined,
-      imagePath: 'assets/images/cleanser.png',
+      time: RoutineTime.both,
     ),
     RoutineProduct(
       category: 'Protect',
       name: 'Oil Control SPF 50',
       description: 'Oil-free sunscreen to prevent scars and dark spots.',
-      icon: Icons.wb_sunny_outlined,
-      imagePath: 'assets/images/sunscreen.png',
-    ),
-  ];
-
-  final List<RoutineProduct> nightProducts = [
-    RoutineProduct(
-      category: 'Cleanse',
-      name: 'Hydrating Cleanser',
-      description: 'Deeply cleanses while maintaining skin moisture barrier.',
-      icon: Icons.water_drop_outlined,
-      imagePath: 'assets/images/cleanser.png',
+      time: RoutineTime.morning,
     ),
     RoutineProduct(
       category: 'Treat',
       name: 'Retinol Serum',
       description: 'Helps resurface skin and minimize the appearance of pores.',
-      icon: Icons.science_outlined,
-      imagePath: 'assets/images/serum.png',
+      time: RoutineTime.evening,
     ),
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _loadRoutine();
+  }
+
+  Future<void> _loadRoutine() async {
+    List<RoutineProduct>? saved;
+    try {
+      saved = await RoutineStorage.load();
+    } catch (e) {
+      debugPrint('Erreur chargement routine: $e');
+    }
+
+    if (!mounted) return;
+    setState(() {
+      // Aucune routine enregistree : on garde l'exemple plutot qu'une page vide
+      if (saved != null) _products = saved;
+      _isLoading = false;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    List<RoutineProduct> currentProducts = isMorning ? morningProducts : nightProducts;
+    // Un produit du matin ET du soir apparait dans les deux listes
+    final currentProducts = _products
+        .where((p) => isMorning ? p.isMorning : p.isEvening)
+        .toList();
 
     return Scaffold(
       backgroundColor: AppColors.white,
@@ -128,16 +130,33 @@ class _RoutinePageState extends State<RoutinePage> {
             const SizedBox(height: 25),
             
             // Routine Items
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: currentProducts.length,
-              separatorBuilder: (context, index) => const SizedBox(height: 20),
-              itemBuilder: (context, index) {
-                final product = currentProducts[index];
-                return _buildRoutineCard(product);
-              },
-            ),
+            if (_isLoading)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 40),
+                child: CircularProgressIndicator(color: AppColors.primaryPurple),
+              )
+            else if (currentProducts.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 40),
+                child: Text(
+                  isMorning
+                      ? 'No product in your morning routine yet.'
+                      : 'No product in your evening routine yet.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 14, color: AppColors.greyText),
+                ),
+              )
+            else
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: currentProducts.length,
+                separatorBuilder: (context, index) => const SizedBox(height: 20),
+                itemBuilder: (context, index) {
+                  final product = currentProducts[index];
+                  return _buildRoutineCard(product);
+                },
+              ),
             const SizedBox(height: 40),
           ],
         ),

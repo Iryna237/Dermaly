@@ -1,108 +1,82 @@
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
+import 'models/routine_product.dart';
+import 'routine.dart';
+import 'services/gemini_service.dart';
+import 'services/routine_storage.dart';
 
-class Product {
-  final String name;
-  final String category;
-  final String skinType;
-  final List<String> tags;
-  final double rating;
-  final String imagePath;
-  bool isFavorite;
-
-  Product({
-    required this.name,
-    required this.category,
-    required this.skinType,
-    required this.tags,
-    required this.rating,
-    required this.imagePath,
-    this.isFavorite = false,
-  });
-}
-
+/// Produits proposés par Gemini à partir de la dernière analyse de peau.
+///
+/// Les produits retenus deviennent la routine de l'utilisateur : ils sont
+/// enregistrés dès leur réception, et la page Routine les affiche répartis
+/// entre matin et soir.
 class RecommendedProductsPage extends StatefulWidget {
-  const RecommendedProductsPage({super.key});
+  final SkinAnalysisResult analysis;
+
+  const RecommendedProductsPage({super.key, required this.analysis});
 
   @override
   State<RecommendedProductsPage> createState() => _RecommendedProductsPageState();
 }
 
+/// Filtre du bandeau de puces
+enum _Filter { all, morning, night }
+
 class _RecommendedProductsPageState extends State<RecommendedProductsPage> {
-  String selectedCategory = 'All';
-  final List<String> categories = ['All', 'Cleanser', 'Serum', 'Moisturizer', 'Sunscreen'];
+  _Filter _filter = _Filter.all;
 
-  final List<Product> allProducts = [
-    Product(
-      name: 'CeraVe Foaming Facial Cleanser',
-      category: 'Cleanser',
-      skinType: 'For combination & oily skin',
-      tags: ['Combination', 'Oil Control'],
-      rating: 4.8,
-      imagePath: 'assets/images/logo.png', // Placeholder
-    ),
-    Product(
-      name: 'La Roche-Posay Hydrating Cleanser',
-      category: 'Cleanser',
-      skinType: 'For normal to dry skin',
-      tags: ['Dry Skin', 'Gentle'],
-      rating: 4.9,
-      imagePath: 'assets/images/logo.png', // Placeholder
-    ),
-    Product(
-      name: 'The Ordinary Niacinamide 10%',
-      category: 'Serum',
-      skinType: 'Helps reduce dark spots & pores',
-      tags: ['Blemish Control', 'Brightening'],
-      rating: 4.7,
-      imagePath: 'assets/images/logo.png', // Placeholder
-    ),
-    Product(
-      name: 'SkinCeuticals C E Ferulic',
-      category: 'Serum',
-      skinType: 'Advanced antioxidant treatment',
-      tags: ['Anti-aging', 'Vitamin C'],
-      rating: 4.9,
-      imagePath: 'assets/images/logo.png', // Placeholder
-    ),
-    Product(
-      name: 'Neutrogena Hydro Boost Water Gel',
-      category: 'Moisturizer',
-      skinType: 'Hydrates & balances moisture',
-      tags: ['Hydration', 'Lightweight'],
-      rating: 4.7,
-      imagePath: 'assets/images/logo.png', // Placeholder
-    ),
-    Product(
-      name: 'Kiehl\'s Ultra Facial Cream',
-      category: 'Moisturizer',
-      skinType: '24-hour daily moisturizer',
-      tags: ['All Skin Types', 'Nourishing'],
-      rating: 4.8,
-      imagePath: 'assets/images/logo.png', // Placeholder
-    ),
-    Product(
-      name: 'EltaMD UV Clear SPF 46',
-      category: 'Sunscreen',
-      skinType: 'Protects from UV & calms acne',
-      tags: ['Acne-prone', 'SPF 46'],
-      rating: 4.9,
-      imagePath: 'assets/images/logo.png', // Placeholder
-    ),
-    Product(
-      name: 'La Roche-Posay Anthelios SPF 60',
-      category: 'Sunscreen',
-      skinType: 'Broad spectrum protection',
-      tags: ['SPF 60', 'Water Resistant'],
-      rating: 4.8,
-      imagePath: 'assets/images/logo.png', // Placeholder
-    ),
-  ];
+  bool _isLoading = true;
+  String? _errorMessage;
+  bool _saveFailed = false;
+  List<RoutineProduct> _products = const [];
 
-  List<Product> get filteredProducts {
-    if (selectedCategory == 'All') return allProducts;
-    return allProducts.where((p) => p.category == selectedCategory).toList();
+  @override
+  void initState() {
+    super.initState();
+    _loadRecommendations();
   }
+
+  Future<void> _loadRecommendations() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+      _saveFailed = false;
+    });
+
+    try {
+      final products = await GeminiService.recommendRoutine(widget.analysis);
+
+      // La recommandation devient la routine de l'utilisateur. Un échec de
+      // sauvegarde n'empêche pas de consulter les produits, il est juste signalé.
+      var saveFailed = false;
+      try {
+        await RoutineStorage.save(products);
+      } catch (e) {
+        debugPrint('Erreur sauvegarde routine: $e');
+        saveFailed = true;
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _products = products;
+        _saveFailed = saveFailed;
+        _isLoading = false;
+      });
+    } catch (e) {
+      debugPrint('Erreur recommandation produits: $e');
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorMessage = e.toString().replaceAll('Exception: ', '');
+      });
+    }
+  }
+
+  List<RoutineProduct> get _filteredProducts => switch (_filter) {
+        _Filter.all => _products,
+        _Filter.morning => _products.where((p) => p.isMorning).toList(),
+        _Filter.night => _products.where((p) => p.isEvening).toList(),
+      };
 
   @override
   Widget build(BuildContext context) {
@@ -143,16 +117,15 @@ class _RecommendedProductsPageState extends State<RecommendedProductsPage> {
                         color: AppColors.black,
                       ),
                     ),
-                    Text(
-                      '💜',
-                      style: TextStyle(fontSize: 22),
-                    ),
+                    Text('💜', style: TextStyle(fontSize: 22)),
                   ],
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  'Products selected for your skin type and concerns.',
-                  style: TextStyle(
+                Text(
+                  _isLoading
+                      ? 'Building a routine for your ${widget.analysis.skinType.toLowerCase()}...'
+                      : 'Products selected for your skin type and concerns.',
+                  style: const TextStyle(
                     fontSize: 14,
                     color: AppColors.greyText,
                     height: 1.4,
@@ -161,58 +134,64 @@ class _RecommendedProductsPageState extends State<RecommendedProductsPage> {
               ],
             ),
           ),
-          const SizedBox(height: 10),
-          // Category Chips
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: categories.map((cat) {
-                final isSelected = selectedCategory == cat;
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                  child: ChoiceChip(
-                    label: Text(cat),
-                    selected: isSelected,
-                    onSelected: (val) {
-                      setState(() {
-                        selectedCategory = cat;
-                      });
-                    },
-                    selectedColor: AppColors.primaryPurple,
-                    labelStyle: TextStyle(
-                      color: isSelected ? AppColors.white : AppColors.black,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                    ),
-                    backgroundColor: AppColors.softPurple,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                  ),
-                );
-              }).toList(),
+          if (_isLoading)
+            const Expanded(child: _LoadingState())
+          else if (_errorMessage != null)
+            Expanded(child: _buildError())
+          else ...[
+            const SizedBox(height: 10),
+            _buildFilterChips(),
+            const SizedBox(height: 15),
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: _filteredProducts.length,
+                itemBuilder: (context, index) => _buildProductCard(_filteredProducts[index]),
+              ),
             ),
-          ),
-          const SizedBox(height: 15),
-          // Product List
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: filteredProducts.length,
-              itemBuilder: (context, index) {
-                final product = filteredProducts[index];
-                return _buildProductCard(product);
-              },
-            ),
-          ),
-          // Info Box
-          _buildInfoFooter(),
+            _buildRoutineFooter(),
+          ],
         ],
       ),
     );
   }
 
-  Widget _buildProductCard(Product product) {
+  Widget _buildFilterChips() {
+    const labels = {
+      _Filter.all: 'All',
+      _Filter.morning: 'Morning',
+      _Filter.night: 'Night',
+    };
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: labels.entries.map((entry) {
+          final isSelected = _filter == entry.key;
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4.0),
+            child: ChoiceChip(
+              label: Text(entry.value),
+              selected: isSelected,
+              onSelected: (_) => setState(() => _filter = entry.key),
+              selectedColor: AppColors.primaryPurple,
+              labelStyle: TextStyle(
+                color: isSelected ? AppColors.white : AppColors.black,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
+              backgroundColor: AppColors.softPurple,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildProductCard(RoutineProduct product) {
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
       padding: const EdgeInsets.all(15),
@@ -231,7 +210,6 @@ class _RecommendedProductsPageState extends State<RecommendedProductsPage> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Product Image
           Container(
             width: 100,
             height: 120,
@@ -243,8 +221,8 @@ class _RecommendedProductsPageState extends State<RecommendedProductsPage> {
               child: Image.asset(
                 product.imagePath,
                 fit: BoxFit.contain,
-                errorBuilder: (context, error, stackTrace) => const Icon(
-                  Icons.medication_outlined,
+                errorBuilder: (context, error, stackTrace) => Icon(
+                  product.icon,
                   size: 50,
                   color: AppColors.primaryPurple,
                 ),
@@ -252,95 +230,32 @@ class _RecommendedProductsPageState extends State<RecommendedProductsPage> {
             ),
           ),
           const SizedBox(width: 15),
-          // Product Details
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        product.name,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.black,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    IconButton(
-                      icon: Icon(
-                        product.isFavorite ? Icons.favorite : Icons.favorite_border,
-                        color: product.isFavorite ? AppColors.brandPink : AppColors.greyText,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          product.isFavorite = !product.isFavorite;
-                        });
-                      },
-                    ),
-                  ],
-                ),
                 Text(
-                  product.skinType,
+                  product.name,
                   style: const TextStyle(
-                    fontSize: 13,
-                    color: AppColors.greyText,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.black,
                   ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  product.description,
+                  style: const TextStyle(fontSize: 13, color: AppColors.greyText, height: 1.3),
                 ),
                 const SizedBox(height: 10),
                 Wrap(
                   spacing: 6,
                   runSpacing: 4,
-                  children: product.tags.map((tag) {
-                    return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: AppColors.softPurple,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        tag,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: AppColors.primaryPurple,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.star, color: Colors.orangeAccent, size: 18),
-                        const SizedBox(width: 4),
-                        Text(
-                          product.rating.toString(),
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
-                    TextButton(
-                      onPressed: () {},
-                      child: const Text(
-                        'View Details',
-                        style: TextStyle(
-                          color: AppColors.primaryPurple,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
+                    _buildTag(product.category),
+                    _buildTag(product.timeLabel, icon: product.isMorning && product.isEvening
+                        ? Icons.brightness_6
+                        : (product.isMorning ? Icons.wb_sunny : Icons.nights_stay)),
                   ],
                 ),
               ],
@@ -351,7 +266,37 @@ class _RecommendedProductsPageState extends State<RecommendedProductsPage> {
     );
   }
 
-  Widget _buildInfoFooter() {
+  Widget _buildTag(String label, {IconData? icon}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.softPurple,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 12, color: AppColors.primaryPurple),
+            const SizedBox(width: 4),
+          ],
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 11,
+              color: AppColors.primaryPurple,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRoutineFooter() {
+    final morning = _products.where((p) => p.isMorning).length;
+    final night = _products.where((p) => p.isEvening).length;
+
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.all(16),
@@ -363,16 +308,83 @@ class _RecommendedProductsPageState extends State<RecommendedProductsPage> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.info, color: AppColors.primaryPurple, size: 20),
+          Icon(
+            _saveFailed ? Icons.cloud_off_rounded : Icons.check_circle_rounded,
+            color: AppColors.primaryPurple,
+            size: 20,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'These products are suitable for all skin tones.',
-              style: TextStyle(
-                fontSize: 12,
-                color: AppColors.darkPurple,
+              _saveFailed
+                  ? 'These products could not be saved to your routine. Check your connection and try again.'
+                  : 'Added to your routine: $morning in the morning, $night at night.',
+              style: const TextStyle(fontSize: 12, color: AppColors.darkPurple),
+            ),
+          ),
+          if (!_saveFailed)
+            TextButton(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const RoutinePage()),
+              ),
+              child: const Text('View', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildError() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(30),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline_rounded, color: AppColors.terracotta, size: 48),
+            const SizedBox(height: 15),
+            Text(
+              _errorMessage ?? 'Unable to build your routine.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 14, color: AppColors.greyText, height: 1.4),
+            ),
+            const SizedBox(height: 25),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton.icon(
+                onPressed: _loadRecommendations,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Try Again'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryPurple,
+                  foregroundColor: AppColors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LoadingState extends StatelessWidget {
+  const _LoadingState();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircularProgressIndicator(color: AppColors.primaryPurple),
+          SizedBox(height: 20),
+          Text(
+            'Choosing products for your concerns',
+            style: TextStyle(fontSize: 13, color: AppColors.greyText),
           ),
         ],
       ),

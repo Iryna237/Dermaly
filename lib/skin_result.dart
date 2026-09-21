@@ -318,7 +318,20 @@ class SkinResultPage extends StatelessWidget {
                   onPressed: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => const RecommendedProductsPage()),
+                      MaterialPageRoute(
+                        builder: (context) => RecommendedProductsPage(
+                          analysis: SkinAnalysisResult(
+                            imagePath: imagePath,
+                            overallScore: overallScore,
+                            hydrationLevel: hydrationLevel,
+                            skinType: skinType,
+                            skinTypeDetails: skinTypeDetails,
+                            concerns: concerns,
+                            recommendationSummary: recommendationSummary,
+                            analyzedAt: analyzedAt,
+                          ),
+                        ),
+                      ),
                     );
                   },
                   style: ElevatedButton.styleFrom(

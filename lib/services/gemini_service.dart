@@ -6,6 +6,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
+import '../models/routine_product.dart';
+
 /// Data model representing the skin analysis results
 class SkinAnalysisResult {
   final String imagePath;
@@ -321,6 +323,32 @@ class GeminiService {
     return text;
   }
 
+  /// Décode la réponse JSON du modèle, en retirant les éventuelles balises de
+  /// code markdown que Gemini ajoute parfois autour du JSON.
+  static Map<String, dynamic> _decodeJsonObject(String text) {
+    var clean = text.trim();
+    if (clean.startsWith('```')) {
+      clean = clean
+          .replaceFirst(RegExp(r'^```json\s*'), '')
+          .replaceFirst(RegExp(r'^```\s*'), '')
+          .replaceAll(RegExp(r'\s*```$'), '');
+    }
+
+    const unreadable = GeminiException(
+      'Gemini sent back something unreadable. Please try again.',
+    );
+
+    final Object? parsed;
+    try {
+      parsed = jsonDecode(clean);
+    } on FormatException catch (e) {
+      debugPrint('Gemini returned invalid JSON: $e');
+      throw unreadable;
+    }
+    if (parsed is! Map<String, dynamic>) throw unreadable;
+    return parsed;
+  }
+
   /// Analyzes a facial photo and returns a structured [SkinAnalysisResult]
   static Future<SkinAnalysisResult> analyzeSkin(String imagePath) async {
     // 1. Read image bytes (either local file or asset)
@@ -416,28 +444,7 @@ Return ONLY a valid JSON object matching this exact format:
     });
 
     // 4. Parse Gemini response
-    String cleanJson = _textFrom(responseData);
-
-    // Clean possible markdown code fences (```json ... ```)
-    if (cleanJson.startsWith('```')) {
-      cleanJson = cleanJson
-          .replaceFirst(RegExp(r'^```json\s*'), '')
-          .replaceFirst(RegExp(r'^```\s*'), '')
-          .replaceAll(RegExp(r'\s*```$'), '');
-    }
-
-    const unreadable = GeminiException(
-      'The analysis came back unreadable. Please try again.',
-    );
-
-    final Object? parsed;
-    try {
-      parsed = jsonDecode(cleanJson);
-    } on FormatException catch (e) {
-      debugPrint('Gemini returned invalid JSON: $e');
-      throw unreadable;
-    }
-    if (parsed is! Map<String, dynamic>) throw unreadable;
+    final parsed = _decodeJsonObject(_textFrom(responseData));
 
     // Gemini valide la photo avant de diagnostiquer. Strict : sans `faceDetected: true`
     // explicite, on refuse plutôt que d'inventer un diagnostic sur une photo
@@ -451,6 +458,84 @@ Return ONLY a valid JSON object matching this exact format:
     }
 
     return SkinAnalysisResult.fromJson(parsed, imagePath: imagePath);
+  }
+
+  /// Propose une routine de soin adaptée à [analysis] : quels produits utiliser,
+  /// et à quel moment de la journée.
+  ///
+  /// Chaque produit porte son moment d'application ; ceux du matin ET du soir
+  /// reviennent dans les deux listes de la routine.
+  static Future<List<RoutineProduct>> recommendRoutine(
+    SkinAnalysisResult analysis,
+  ) async {
+    final concerns = [
+      for (final entry in analysis.concerns.entries) '- ${entry.key}: ${entry.value}/100',
+    ].join('\n');
+
+    final prompt = '''
+You are a certified dermatologist building a skincare routine for a Dermaly user.
+
+Their latest skin analysis:
+- Skin type: ${analysis.skinType} (${analysis.skinTypeDetails})
+- Overall skin health: ${analysis.overallScore}/100
+- Hydration: ${analysis.hydrationLevel}/100
+- Concerns, 0 = none and 100 = severe:
+$concerns
+
+Recommend 4 to 6 real, widely available products that treat THESE concerns,
+worst ones first. Cover cleansing, treatment, hydration and daytime sun
+protection. Never recommend two products that conflict (for example retinol and
+a strong exfoliating acid in the same evening).
+
+For each product give:
+- "category": one word among "Cleanse", "Treat", "Hydrate", "Protect", "Exfoliate"
+- "name": the actual product name, brand included
+- "description": one short sentence saying what it does for THIS skin
+- "time": "morning" if it belongs to the morning routine only, "evening" if it
+  belongs to the evening routine only, "both" if it is applied morning and
+  evening. Sunscreen is always "morning". Retinol and other actives that
+  increase sun sensitivity are always "evening". A cleanser or a moisturizer
+  used twice a day is "both".
+
+Return ONLY a valid JSON object matching this exact format:
+{
+  "products": [
+    {
+      "category": "Cleanse",
+      "name": "CeraVe Foaming Facial Cleanser",
+      "description": "Removes excess oil without stripping the skin barrier.",
+      "time": "both"
+    }
+  ]
+}
+''';
+
+    final responseData = await _generateContent({
+      'contents': [
+        {
+          'parts': [
+            {'text': prompt}
+          ]
+        }
+      ],
+      'generationConfig': {
+        'response_mime_type': 'application/json',
+        'temperature': 0.4,
+      }
+    });
+
+    final parsed = _decodeJsonObject(_textFrom(responseData));
+    final products = [
+      for (final item in parsed['products'] as List? ?? const [])
+        ?RoutineProduct.fromJson(item),
+    ];
+
+    if (products.isEmpty) {
+      throw const GeminiException(
+        'No routine could be built from this analysis. Please try again.',
+      );
+    }
+    return products;
   }
 
   /// Envoie une conversation à Gemini et retourne le texte de la réponse (utilisé par le chat).
