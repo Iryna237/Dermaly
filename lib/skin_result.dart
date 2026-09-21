@@ -1,8 +1,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
+import 'products.dart';
 import 'questionnaire.dart';
-import 'routine.dart';
 import 'services/gemini_service.dart';
 
 class SkinResultPage extends StatelessWidget {
@@ -84,10 +84,6 @@ class SkinResultPage extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: AppColors.white,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.black),
-          onPressed: () => Navigator.pop(context),
-        ),
         title: const Text(
           'Analysis Result',
           style: TextStyle(color: AppColors.black, fontWeight: FontWeight.bold, fontSize: 18),
@@ -322,7 +318,7 @@ class SkinResultPage extends StatelessWidget {
                   onPressed: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => const RoutinePage()),
+                      MaterialPageRoute(builder: (context) => const RecommendedProductsPage()),
                     );
                   },
                   style: ElevatedButton.styleFrom(

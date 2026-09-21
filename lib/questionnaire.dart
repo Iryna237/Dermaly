@@ -136,12 +136,12 @@ class _QuestionnairePageState extends State<QuestionnairePage> {
       appBar: AppBar(
         backgroundColor: AppColors.transparent,
         elevation: 0,
-        leading: IconButton(
+        /*leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new, color: AppColors.darkPurple, size: 20),
           onPressed: () {
            Navigator.pop(context);
           },
-        ),
+        ),*/
         title: Text(
           // Page 0 = intro, pages 1 à 11 = questions, page 12 = fin du questionnaire
           _currentPage == 0

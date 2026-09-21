@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:ziskin/admin_dash.dart';
+import 'package:ziskin/dermatologist_dashboard.dart';
 import 'package:ziskin/pages/auth/register.dart';
 import 'package:ziskin/screen_manage.dart';
 
@@ -50,26 +52,31 @@ class _LoginPageState extends State<LoginPage> {
 
       final user = userCredential.user;
       String userName = '';
+      String role = 'client';
+      String status = 'accepted';
 
       if (user != null) {
-        if (user.displayName != null && user.displayName!.trim().isNotEmpty) {
-          userName = user.displayName!.trim().split(' ')[0];
-        } else {
-          try {
-            final userDoc = await FirebaseFirestore.instance
-                .collection('users')
-                .doc(user.uid)
-                .get();
-            if (userDoc.exists && userDoc.data() != null) {
-              final fullName = (userDoc.data()?['fullName'] ?? '').toString().trim();
-              if (fullName.isNotEmpty) {
-                userName = fullName.split(' ')[0];
-              }
+        try {
+          final userDoc = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .get();
+          if (userDoc.exists && userDoc.data() != null) {
+            final data = userDoc.data()!;
+            final fullName = (data['fullName'] ?? '').toString().trim();
+            if (fullName.isNotEmpty) {
+              userName = fullName.split(' ')[0];
             }
-          } catch (e) {
-            debugPrint("Error retrieving the user profil: $e");
+            role = data['role'] ?? 'client';
+            status = data['status'] ?? 'accepted';
           }
+        } catch (e) {
+          debugPrint("Error retrieving the user profile: $e");
         }
+      }
+
+      if (userName.isEmpty && user?.displayName != null && user!.displayName!.isNotEmpty) {
+        userName = user.displayName!.split(' ')[0];
       }
 
       if (userName.isEmpty && user?.email != null && user!.email!.isNotEmpty) {
@@ -78,19 +85,35 @@ class _LoginPageState extends State<LoginPage> {
 
       if (!mounted) return;
 
+      if (role == 'dermatologist' && status == 'pending') {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const PendingVerificationPage()),
+          (route) => false,
+        );
+        return;
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("Connexion successful !"),
+          content: Text("Connection successful !"),
           backgroundColor: Colors.green,
         ),
       );
 
+      Widget destination;
+      if (role == 'admin') {
+        destination = const AdminDashboard();
+      } else if (role == 'dermatologist') {
+        destination = DermatologistDashboard(doctorName: userName.isNotEmpty ? userName : 'Doctor');
+      } else {
+        destination = ScreenManage(userName: userName.isNotEmpty ? userName : null);
+      }
+
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(
-          builder: (context) => ScreenManage(userName: userName.isNotEmpty ? userName : null),
-        ),
-            (route) => false,
+        MaterialPageRoute(builder: (context) => destination),
+        (route) => false,
       );
     } on FirebaseAuthException catch (e) {
       String errorMessage = "Connexion failed.";

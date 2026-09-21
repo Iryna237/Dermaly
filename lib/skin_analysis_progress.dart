@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
 import 'make_skin_analysis.dart';
@@ -157,6 +159,28 @@ class _SkinAnalysisProgressPageState extends State<SkinAnalysisProgressPage>
       } catch (e) {
         debugPrint('Erreur sauvegarde analyse: $e');
         saveFailed = true;
+      }
+
+      // Historique des analyses dans Firestore. Même traitement que la sauvegarde
+      // locale : une écriture ratée ne doit pas faire passer une analyse réussie
+      // pour une erreur
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid != null) {
+        try {
+          await SkinAnalysisStorage.writeWithTimeout(
+            FirebaseFirestore.instance
+                .collection('users')
+                .doc(uid)
+                .collection('analyses')
+                .add({
+                  ...result.toJson(),
+                  'timestamp': FieldValue.serverTimestamp(),
+                }),
+          );
+        } catch (e) {
+          debugPrint('Erreur historique analyse Firestore: $e');
+          saveFailed = true;
+        }
       }
 
       if (!mounted) return;

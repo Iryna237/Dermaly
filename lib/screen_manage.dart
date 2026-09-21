@@ -32,7 +32,7 @@ class _ScreenManageState extends State<ScreenManage> {
       ),
       const SkinProgressPage(),
       const MakeSkinAnalysisPage(),
-      const AiChatPage(),
+      const ClientChatListPage(),
       const ProfilePage(),
     ];
 

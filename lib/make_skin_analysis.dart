@@ -31,11 +31,11 @@ class _MakeSkinAnalysisPageState extends State<MakeSkinAnalysisPage>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
-    // La ligne de scan ne s'anime que pendant la capture (voir _captureAndAnalyze)
+    // La ligne de scan balaie en continu tant que l'aperçu caméra est affiché
     _scannerController = AnimationController(
       duration: const Duration(seconds: 2),
       vsync: this,
-    );
+    )..repeat(reverse: true);
 
     _scannerAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _scannerController, curve: Curves.easeInOut),
@@ -46,7 +46,9 @@ class _MakeSkinAnalysisPageState extends State<MakeSkinAnalysisPage>
 
   void _switchCamera() {
     if (_cameras == null || _cameras!.length < 2) return;
-    _selectedCameraIndex = (_selectedCameraIndex + 1) % _cameras!.length;
+    setState(() {
+      _selectedCameraIndex = (_selectedCameraIndex + 1) % _cameras!.length;
+    });
     _initCameraController(_cameras![_selectedCameraIndex]);
   }
 
@@ -65,12 +67,15 @@ class _MakeSkinAnalysisPageState extends State<MakeSkinAnalysisPage>
       setState(() {
         _isScanning = true;
       });
-      _scannerController.repeat(reverse: true);
 
       // 1. Capture de la photo réelle depuis le flux caméra
       final XFile photo = await _cameraController!.takePicture();
 
       if (!mounted) return;
+
+      // La caméra reste vivante sous la page d'analyse : rendre la main au
+      // déclencheur, sinon il reste désactivé au retour
+      setState(() => _isScanning = false);
 
       // 2. Page de progression empilée AU-DESSUS de la caméra (pushReplacement
       //    remplacerait l'onglet Scan, donc tout le ScreenManage, et un retour
@@ -85,7 +90,6 @@ class _MakeSkinAnalysisPageState extends State<MakeSkinAnalysisPage>
     } catch (e) {
       debugPrint('Erreur lors de la prise de photo : $e');
       if (mounted) {
-        _scannerController.stop();
         setState(() {
           _isScanning = false;
         });
@@ -194,42 +198,21 @@ class _MakeSkinAnalysisPageState extends State<MakeSkinAnalysisPage>
               Stack(
                 alignment: Alignment.center,
                 children: [
-                  Container(
+                  SizedBox(
                     //width: 400,
                     height: 420,
-                    decoration: BoxDecoration(
-                      color: AppColors.black.withAlpha(51), // 0.2 * 255
-                      borderRadius: BorderRadius.circular(40),
-                      border: Border.all(color: AppColors.white.withAlpha(128), width: 1.5),
-                    ),
+
                     child: (_cameraController != null &&
                         _cameraController!
                             .value
                             .isInitialized)
-                        ? CameraPreview(_cameraController!) : Image.asset("assets/images/logo.png"),
+                        ? ClipRRect(borderRadius: BorderRadiusGeometry.circular(40),child: CameraPreview(_cameraController!)) : Image.asset("assets/images/logo.png",width: 100,),
                   ),
 
-                 /* Container(
-                    width: 40,
-                    height: 420,
-                    decoration: BoxDecoration(
-                      color: AppColors.black.withAlpha(51), // 0.2 * 255
-                      borderRadius: BorderRadius.circular(40),
-                      border: Border.all(color: AppColors.white.withAlpha(128), width: 1.5),
-                    ),
-                  ),*/
-
-                  // Scanning Brackets
-                  const SizedBox(
-                    width: 310,
-                    height: 430,
-                    child: CustomPaint(painter: ScannerBracketsPainter()),
-                  ),
                   IconButton(onPressed: _switchCamera, icon: Icon(Icons.cameraswitch)),
 
                   // Moving Scan Line
-                  if (_isScanning)
-                    AnimatedBuilder(
+                  if (_cameraController != null && _cameraController!.value.isInitialized)                    AnimatedBuilder(
                       animation: _scannerAnimation,
                       builder: (context, child) {
                         return Positioned(

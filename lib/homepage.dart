@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -30,6 +33,7 @@ class SkinCareHomePage extends StatefulWidget {
 class _SkinCareHomePageState extends State<SkinCareHomePage> {
   String _displayName = '';
   String? _photoUrl;
+  Uint8List? _photoBytes;
   bool _isOpeningAnalysis = false;
 
   /// Première analyse : questionnaire puis scan.
@@ -97,19 +101,35 @@ class _SkinCareHomePageState extends State<SkinCareHomePage> {
 
   Future<void> _fetchDataFromFirestore(String uid) async {
     try {
-      final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
+
       if (doc.exists && doc.data() != null) {
         final data = doc.data()!;
-        final fullName = (data['fullName'] ?? data['name'] ?? '').toString().trim();
-        final photoUrl = data['photoUrl'];
-        
+        final fullName = (data['fullName'] ?? data['name'] ?? '')
+            .toString()
+            .trim();
+        final photoBase64 = data['photoBase64'] as String?;
+        final photoUrl = data['photoUrl'] as String?;
+
         if (mounted) {
           setState(() {
             if (fullName.isNotEmpty) {
               _displayName = fullName.split(' ')[0];
             }
-            if (photoUrl != null) {
+            // 👇 Priorité au base64, fallback URL
+            if (photoBase64 != null && photoBase64.isNotEmpty) {
+              try {
+                _photoBytes = base64Decode(photoBase64);
+                _photoUrl = null;
+              } catch (e) {
+                debugPrint('❌ Base64 decode error: $e');
+              }
+            } else if (photoUrl != null) {
               _photoUrl = photoUrl;
+              _photoBytes = null;
             }
           });
         }
@@ -118,6 +138,7 @@ class _SkinCareHomePageState extends State<SkinCareHomePage> {
       debugPrint('Erreur récupération données utilisateur: $e');
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -224,21 +245,25 @@ class _SkinCareHomePageState extends State<SkinCareHomePage> {
                   child: CircleAvatar(
                     radius: 30,
                     backgroundColor: AppColors.lightPurple,
-                    backgroundImage: _photoUrl != null ? NetworkImage(_photoUrl!) : null,
-                    child: _photoUrl == null
+                    backgroundImage: _photoBytes != null
+                        ? MemoryImage(_photoBytes!)
+                        : (_photoUrl != null
+                        ? NetworkImage(_photoUrl!) as ImageProvider
+                        : null),
+                    child: (_photoBytes == null && _photoUrl == null)
                         ? ClipOval(
-                            child: Image.asset(
-                              widget.profileImagePath,
-                              fit: BoxFit.cover,
-                              width: 60,
-                              height: 60,
-                              errorBuilder: (context, error, stackTrace) => const Icon(
-                                Icons.person,
-                                color: AppColors.terracotta,
-                                size: 30,
-                              ),
-                            ),
-                          )
+                      child: Image.asset(
+                        widget.profileImagePath,
+                        fit: BoxFit.cover,
+                        width: 60,
+                        height: 60,
+                        errorBuilder: (_, _, _) => const Icon(
+                          Icons.person,
+                          color: AppColors.terracotta,
+                          size: 30,
+                        ),
+                      ),
+                    )
                         : null,
                   ),
                 ),
@@ -417,7 +442,7 @@ class _SkinCareHomePageState extends State<SkinCareHomePage> {
                   title: 'Skin Analysis',
                   subtitle: 'Analyze your skin with AI',
                   icon: Icons.arrow_forward,
-                  color: AppColors.lightPurple,
+                  color: AppColors.white,
                   showBadge: true,
                   isLoading: _isOpeningAnalysis,
                   onTap: _openSkinAnalysis,
@@ -448,14 +473,14 @@ class _SkinCareHomePageState extends State<SkinCareHomePage> {
                   },
                 ),
                 _buildJourneyCard(
-                  title: 'Chat with Dermatologist',
+                  title: 'Consult Dermatologist',
                   subtitle: 'Get expert advice',
                   icon: Icons.chat_bubble_outline,
                   color: AppColors.terracotta,
                   onTap: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => const AiChatPage()),
+                      MaterialPageRoute(builder: (context) => const ClientChatListPage()),
                     );
                   },
                 ),
@@ -546,21 +571,7 @@ class _SkinCareHomePageState extends State<SkinCareHomePage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (showBadge)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: AppColors.white,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Text(
-                  'New',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.terracotta,
-                  ),
-                ),
-              ),
+
             const Spacer(),
             Text(
               title,

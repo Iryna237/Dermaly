@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -22,6 +24,7 @@ class _ProfilePageState extends State<ProfilePage> {
   String _skinType = '';
   String? _photoUrl;
   final ImagePicker _picker = ImagePicker();
+  Uint8List? _photoBytes;   // 👈 pour stocker les bytes décodés
 
   @override
   void initState() {
@@ -34,18 +37,29 @@ class _ProfilePageState extends State<ProfilePage> {
     if (user != null) {
       _email = user.email ?? '';
       _fullName = user.displayName ?? '';
-      _photoUrl = user.photoURL;
 
       final profile = await _authService.getUserProfile();
       if (mounted && profile != null) {
         setState(() {
-          _fullName = (profile['fullName'] ?? profile['name'] ?? _fullName).toString().trim();
+          _fullName = (profile['fullName'] ?? profile['name'] ?? _fullName)
+              .toString()
+              .trim();
           _email = (profile['email'] ?? _email).toString().trim();
           if (profile['age'] != null) {
             _age = int.tryParse(profile['age'].toString());
           }
           _skinType = (profile['skinType'] ?? '').toString().trim();
-          _photoUrl = profile['photoUrl'] ?? _photoUrl;
+
+          // 👇 Nouveau : lire la photo depuis Firestore (base64)
+          final base64String = profile['photoBase64'] as String?;
+          if (base64String != null && base64String.isNotEmpty) {
+            _photoBytes = base64Decode(base64String);   // 👈 variable à ajouter
+          }
+          // Fallback ancienne méthode (au cas où)
+          else if (profile['photoUrl'] != null) {
+            _photoUrl = profile['photoUrl'] as String?;
+          }
+
           _isLoading = false;
         });
         return;
@@ -53,11 +67,10 @@ class _ProfilePageState extends State<ProfilePage> {
     }
 
     if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
+      setState(() => _isLoading = false);
     }
   }
+
 
   Future<void> _confirmSignOut() async {
     final shouldLogout = await showDialog<bool>(
@@ -133,55 +146,51 @@ class _ProfilePageState extends State<ProfilePage> {
         source: ImageSource.gallery,
         maxWidth: 512,
         maxHeight: 512,
-        imageQuality: 75,
+        imageQuality: 60,     // 👈 60 au lieu de 75 pour réduire
       );
 
-      if (image != null) {
-        setState(() {
-          _isLoading = true;
-        });
+      if (image == null) return;
 
-        final url = await _authService.uploadProfilePicture(File(image.path));
+      setState(() => _isLoading = true);
 
-        if (mounted) {
-          if (url != null) {
-            setState(() {
-              _photoUrl = url;
-              _isLoading = false;
-            });
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text("Profile picture updated successfully !"),
-                backgroundColor: Colors.green,
-              ),
-            );
-          } else {
-            setState(() {
-              _isLoading = false;
-            });
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text("Error uploading image."),
-                backgroundColor: Colors.red,
-              ),
-            );
-          }
-        }
-      }
-    } catch (e) {
-      if (mounted) {
+      final base64String = await _authService.uploadProfilePicture(File(image.path));
+
+      if (!mounted) return;
+
+      if (base64String != null) {
         setState(() {
+          _photoBytes = base64Decode(base64String);   // 👈 mise à jour locale
+          _photoUrl = null;                            // on n'utilise plus l'URL
           _isLoading = false;
         });
+
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Error picking image: $e"),
+          const SnackBar(
+            content: Text("Photo de profil mise à jour !"),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Erreur lors de l'upload."),
             backgroundColor: Colors.red,
           ),
         );
       }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Erreur : $e"),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -241,18 +250,15 @@ class _ProfilePageState extends State<ProfilePage> {
                               child: CircleAvatar(
                                 radius: 55,
                                 backgroundColor: AppColors.lightPurple,
-                                backgroundImage: _photoUrl != null
-                                    ? NetworkImage(_photoUrl!)
+                                backgroundImage: _photoBytes != null
+                                    ? MemoryImage(_photoBytes!)         // 👈 base64 → MemoryImage
+                                    : (_photoUrl != null
+                                    ? NetworkImage(_photoUrl!) as ImageProvider
+                                    : null),
+                                child: (_photoBytes == null && _photoUrl == null)
+                                    ? const Icon(Icons.person, color: AppColors.terracotta, size: 60)
                                     : null,
-                                child: _photoUrl == null
-                                    ? const Icon(
-                                        Icons.person,
-                                        color: AppColors.terracotta,
-                                        size: 60,
-                                      )
-                                    : null,
-                              ),
-                            ),
+                              ),                            ),
                             Positioned(
                               bottom: 0,
                               right: 0,
@@ -336,7 +342,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         _buildInfoRow(
                           Icons.spa_outlined,
                           'SkinType',
-                          _skinType.isNotEmpty ? _skinType : 'Non défini (Faire le test)',
+                          _skinType.isNotEmpty ? _skinType : 'Not defined (make a test)',
                         ),
                       ],
                     ),

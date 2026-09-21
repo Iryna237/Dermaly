@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'app_colors.dart';
@@ -5,216 +7,252 @@ import 'models/chat_message.dart';
 import 'services/chat_service.dart';
 import 'services/gemini_service.dart';
 
-class AiChatPage extends StatefulWidget {
-  const AiChatPage({super.key});
+class ClientChatListPage extends StatefulWidget {
+  const ClientChatListPage({super.key});
 
   @override
-  State<AiChatPage> createState() => _AiChatPageState();
+  State<ClientChatListPage> createState() => _ClientChatListPageState();
 }
 
-class _AiChatPageState extends State<AiChatPage> {
-  final ChatService _chatService = ChatService();
-  final TextEditingController _messageController = TextEditingController();
-  final ScrollController _scrollController = ScrollController();
-  // Flux créé une seule fois : sinon chaque setState se réabonne et réaffiche le chargement
-  late final Stream<List<ChatMessage>> _messages = _chatService.getMessages();
-  bool _isTyping = false;
-
-  @override
-  void dispose() {
-    _messageController.dispose();
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _sendMessage() async {
-    final text = _messageController.text.trim();
-    if (text.isEmpty || _isTyping) return;
-
-    _messageController.clear();
-    setState(() {
-      _isTyping = true;
-    });
-
-    try {
-      await _chatService.sendMessage(text);
-    } catch (e) {
-      debugPrint('Erreur chat: $e');
-      if (mounted) {
-        final message = e.toString().replaceAll('Exception: ', '');
-        // Surcharge passagère de l'IA : le message se suffit à lui-même
-        final busy = e is GeminiException && e.isTransient;
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(busy ? message : 'Dr. Zita could not answer: $message'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isTyping = false;
-        });
-      }
-    }
-  }
-
+class _ClientChatListPageState extends State<ClientChatListPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F2EE), // Matching the beige background from the image
+      backgroundColor: AppColors.white,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFF7F2EE),
+        backgroundColor: AppColors.white,
         elevation: 0,
-        automaticallyImplyLeading: false,
-        // Bouton retour seulement si la page a été ouverte depuis l'accueil (pas depuis l'onglet Chat) :
-        // dans l'onglet, pop fermerait l'écran principal
-        leading: ModalRoute.of(context)?.canPop == true
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back_ios_new, color: AppColors.darkPurple, size: 20),
-                onPressed: () => Navigator.pop(context),
-              )
-            : null,
         title: const Text(
-          'DERMALY',
-          style: TextStyle(
-            color: AppColors.darkPurple,
-            fontWeight: FontWeight.w400,
-            letterSpacing: 2,
-            fontSize: 20,
-          ),
+          'Dermaly Messages',
+          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.darkPurple),
         ),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.menu, color: AppColors.darkPurple),
-            onPressed: () {},
-          ),
-        ],
       ),
       body: Column(
         children: [
-          // Chat Messages
+          // AI Assistant Option
+          _buildChatTile(
+            name: 'Dermaly AI Assistant',
+            subtitle: 'AI specialized in dermatology',
+            isAi: true,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const DetailedChatPage(isAi: true)),
+              );
+            },
+          ),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+            child: Divider(),
+          ),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Professional Consultations',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.darkPurple),
+              ),
+            ),
+          ),
+          // Dermatologists List (Simplified: fetching all available doctors)
           Expanded(
-            child: StreamBuilder<List<ChatMessage>>(
-              stream: _messages,
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('users')
+                  .where('role', isEqualTo: 'dermatologist')
+                  .where('status', isEqualTo: 'accepted')
+                  .snapshots(),
               builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(30),
-                      child: Text(
-                        'Unable to load your messages.\n${snapshot.error}',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(color: AppColors.greyText),
-                      ),
-                    ),
-                  );
-                }
-                if (!snapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator(color: AppColors.primaryPurple));
-                }
+                if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+                final doctors = snapshot.data!.docs;
 
-                final messages = snapshot.data!;
+                if (doctors.isEmpty) {
+                  return const Center(child: Text('No verified dermatologists available yet.', style: TextStyle(color: AppColors.greyText)));
+                }
 
                 return ListView.builder(
-                  controller: _scrollController,
-                  reverse: true, // Show latest messages at the bottom
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-                  itemCount: messages.length + 1,
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  itemCount: doctors.length,
                   itemBuilder: (context, index) {
-                    if (index == 0) {
-                      return _isTyping
-                        ? _buildTypingIndicator()
-                        : const SizedBox.shrink();
-                    }
-
-                    final message = messages[index - 1];
-                    return _buildChatBubble(message);
+                    final data = doctors[index].data() as Map<String, dynamic>;
+                    return _buildChatTile(
+                      name: 'Dr. ${data['fullName'] ?? 'Expert'}',
+                      subtitle: 'Clinical Dermatology',
+                      photoUrl: data['photoUrl'],
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => DetailedChatPage(
+                              isAi: false,
+                              peerId: data['uid'],
+                              peerName: 'Dr. ${data['fullName']}',
+                            ),
+                          ),
+                        );
+                      },
+                    );
                   },
                 );
               },
             ),
           ),
+        ],
+      ),
+    );
+  }
 
-          // Message Input
+  Widget _buildChatTile({
+    required String name,
+    required String subtitle,
+    String? photoUrl,
+    bool isAi = false,
+    required VoidCallback onTap,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(left: 24, right: 24, bottom: 15),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isAi ? AppColors.softPurple : AppColors.white,
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: AppColors.softGrey),
+      ),
+      child: ListTile(
+        contentPadding: EdgeInsets.zero,
+        leading: CircleAvatar(
+          radius: 25,
+          backgroundColor: isAi ? AppColors.primaryPurple : AppColors.lightPurple,
+          backgroundImage: photoUrl != null ? NetworkImage(photoUrl) : null,
+          child: photoUrl == null 
+              ? Icon(isAi ? Icons.auto_awesome : Icons.person, color: Colors.white)
+              : null,
+        ),
+        title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkPurple)),
+        subtitle: Text(subtitle, style: const TextStyle(fontSize: 12, color: AppColors.greyText)),
+        trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.softGrey),
+        onTap: onTap,
+      ),
+    );
+  }
+}
+
+class DetailedChatPage extends StatefulWidget {
+  final bool isAi;
+  final String? peerId;
+  final String? peerName;
+
+  const DetailedChatPage({
+    super.key,
+    required this.isAi,
+    this.peerId,
+    this.peerName,
+  });
+
+  @override
+  State<DetailedChatPage> createState() => _DetailedChatPageState();
+}
+
+class _DetailedChatPageState extends State<DetailedChatPage> {
+  final TextEditingController _messageController = TextEditingController();
+  final ChatService _chatService = ChatService();
+  bool _isTyping = false;
+
+  // Flux créé une seule fois : le recréer à chaque build relance la lecture Firestore
+  late final Stream<List<ChatMessage>> _messages =
+      widget.isAi ? _chatService.getMessages() : _getPeerMessages();
+
+  @override
+  void dispose() {
+    _messageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF7F2EE),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFFF7F2EE),
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new, color: AppColors.darkPurple, size: 20),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          widget.isAi ? 'Dermaly AI' : (widget.peerName ?? 'Dermatologist'),
+          style: const TextStyle(color: AppColors.darkPurple, fontWeight: FontWeight.bold),
+        ),
+        centerTitle: true,
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: StreamBuilder<List<ChatMessage>>(
+              stream: _messages,
+              builder: (context, snapshot) {
+                final messages = snapshot.data ?? [];
+                return ListView.builder(
+                  reverse: true,
+                  padding: const EdgeInsets.all(16),
+                  itemCount: messages.length,
+                  itemBuilder: (context, index) {
+                    final msg = messages[index];
+                    final isMe = msg.sender == MessageSender.user;
+
+                    return _buildChatBubble(msg.text, isMe, msg.timestamp);
+                  },
+                );
+              },
+            ),
+          ),
+          if (_isTyping)
+            const Padding(
+              padding: EdgeInsets.all(8.0),
+              child: Text('Dermaly AI is typing...', style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey)),
+            ),
           _buildMessageInput(),
         ],
       ),
     );
   }
 
-  Widget _buildChatBubble(ChatMessage message) {
-    final isUser = message.sender == MessageSender.user;
-    final timeStr = DateFormat('h:mm a').format(message.timestamp);
+  Stream<List<ChatMessage>> _getPeerMessages() {
+    final String myId = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final String peerId = widget.peerId!;
+    final String chatId = myId.compareTo(peerId) < 0 ? '${myId}_$peerId' : '${peerId}_$myId';
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Column(
-        crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
-            children: [
-              Flexible(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: isUser ? AppColors.terracotta : AppColors.white,
-                    borderRadius: BorderRadius.only(
-                      topLeft: const Radius.circular(20),
-                      topRight: const Radius.circular(20),
-                      bottomLeft: Radius.circular(isUser ? 20 : 0),
-                      bottomRight: Radius.circular(isUser ? 0 : 20),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withAlpha(13), // 0.05 * 255
-                        blurRadius: 5,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Text(
-                    message.text,
-                    style: TextStyle(
-                      color: isUser ? AppColors.white : AppColors.darkPurple,
-                      fontSize: 15,
-                      height: 1.4,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            timeStr,
-            style: TextStyle(
-              color: Colors.grey.withAlpha(204), // 0.8 * 255
-              fontSize: 11,
-            ),
-          ),
-        ],
-      ),
-    );
+    return FirebaseFirestore.instance
+        .collection('chats')
+        .doc(chatId)
+        .collection('messages')
+        .orderBy('timestamp', descending: true)
+        .snapshots()
+        .map((snap) => snap.docs.map((doc) => ChatMessage.fromMap(doc.data())).toList());
   }
 
-  Widget _buildTypingIndicator() {
+  Widget _buildChatBubble(String text, bool isMe, DateTime time) {
     return Align(
-      alignment: Alignment.centerLeft,
+      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        margin: const EdgeInsets.symmetric(vertical: 5),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: AppColors.white,
-          borderRadius: BorderRadius.circular(20),
+          color: isMe ? AppColors.terracotta : AppColors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(15),
+            topRight: const Radius.circular(15),
+            bottomLeft: Radius.circular(isMe ? 15 : 0),
+            bottomRight: Radius.circular(isMe ? 0 : 15),
+          ),
         ),
-        child: const Text(
-          "Dr. Zita is typing...",
-          style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Colors.grey),
+        child: Column(
+          crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          children: [
+            Text(text, style: TextStyle(color: isMe ? Colors.white : AppColors.darkPurple, fontSize: 15)),
+            const SizedBox(height: 4),
+            Text(DateFormat('HH:mm').format(time), style: TextStyle(fontSize: 10, color: isMe ? Colors.white70 : Colors.grey)),
+          ],
         ),
       ),
     );
@@ -222,69 +260,80 @@ class _AiChatPageState extends State<AiChatPage> {
 
   Widget _buildMessageInput() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF7F2EE),
-        border: Border(top: BorderSide(color: Colors.grey.withAlpha(26))), // 0.1 * 255
-      ),
-      child: SafeArea(
-        child: Container(
-          decoration: BoxDecoration(
-            color: AppColors.white,
-            borderRadius: BorderRadius.circular(30),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withAlpha(13), // 0.05 * 255
-                blurRadius: 10,
-                offset: const Offset(0, -2),
+      padding: const EdgeInsets.all(16),
+      decoration: const BoxDecoration(color: Colors.white, border: Border(top: BorderSide(color: AppColors.softGrey))),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _messageController,
+              decoration: InputDecoration(
+                hintText: 'Type a message...',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
+                fillColor: AppColors.softPurple,
+                filled: true,
               ),
-            ],
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8.0),
-            child: Row(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.face_outlined, color: Colors.grey, size: 22),
-                  onPressed: () {},
-                ),
-                Expanded(
-                  child: TextField(
-                    controller: _messageController,
-                    decoration: const InputDecoration(
-                      hintText: 'Your message',
-                      hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(horizontal: 10),
-                    ),
-                    onSubmitted: (_) => _sendMessage(),
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.attach_file, color: Colors.grey, size: 22),
-                  onPressed: () {},
-                ),
-                IconButton(
-                  icon: const Icon(Icons.camera_alt_outlined, color: Colors.grey, size: 22),
-                  onPressed: () {},
-                ),
-                GestureDetector(
-                  onTap: _sendMessage,
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: const BoxDecoration(
-                      color: AppColors.terracotta,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.send_rounded, color: Colors.white, size: 18),
-                  ),
-                ),
-                const SizedBox(width: 8),
-              ],
             ),
           ),
-        ),
+          const SizedBox(width: 10),
+          IconButton(
+            icon: const Icon(Icons.send_rounded, color: AppColors.primaryPurple),
+            onPressed: _sendMessage,
+          ),
+        ],
       ),
     );
+  }
+
+  void _sendMessage() async {
+    final text = _messageController.text.trim();
+    // Bloquer le double envoi pendant que l'IA répond
+    if (text.isEmpty || _isTyping) return;
+    _messageController.clear();
+
+    if (widget.isAi) {
+      setState(() => _isTyping = true);
+      try {
+        await _chatService.sendMessage(text);
+      } catch (e) {
+        // L'erreur est montrée à l'utilisateur, pas enregistrée comme une réponse de l'IA
+        debugPrint('Erreur chat: $e');
+        if (mounted) {
+          final message = e.toString().replaceAll('Exception: ', '');
+          // Surcharge passagère de l'IA : le message se suffit à lui-même
+          final busy = e is GeminiException && e.isTransient;
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(busy ? message : 'Dermaly AI could not answer: $message'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      } finally {
+        if (mounted) setState(() => _isTyping = false);
+      }
+    } else {
+      final String myId = FirebaseAuth.instance.currentUser?.uid ?? '';
+      final String peerId = widget.peerId!;
+      final String chatId = myId.compareTo(peerId) < 0 ? '${myId}_$peerId' : '${peerId}_$myId';
+
+      await FirebaseFirestore.instance
+          .collection('chats')
+          .doc(chatId)
+          .collection('messages')
+          .add({
+            'text': text,
+            'sender': 'user',
+            'timestamp': FieldValue.serverTimestamp(),
+          });
+          
+      // Update last message in chat room metadata (optional)
+      await FirebaseFirestore.instance.collection('chats').doc(chatId).set({
+        'lastMessage': text,
+        'timestamp': FieldValue.serverTimestamp(),
+        'participants': [myId, peerId],
+      }, SetOptions(merge: true));
+    }
   }
 }

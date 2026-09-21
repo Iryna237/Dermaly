@@ -1,15 +1,15 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'admin_dash.dart';
+import 'dermatologist_dashboard.dart';
 import 'landing_page.dart';
+import 'pages/auth/register.dart';
 import 'screen_manage.dart';
 import 'services/auth_service.dart';
 import 'splash_screen.dart';
 
 /// Passerelle d'authentification garantissant la persistance de connexion.
-/// - Au démarrage à froid : Affiche le splash screen animé (~2.2s), vérifie la session persistée par Firebase Auth.
-/// - Si l'utilisateur est déjà connecté : Redirige vers ScreenManage.
-/// - Si l'utilisateur n'est pas connecté : Redirige vers LandingPage.
-/// - Réagit en temps réel aux changements d'état d'authentification (connexion, déconnexion).
 class AuthGate extends StatefulWidget {
   final bool skipSplash;
 
@@ -33,12 +33,8 @@ class _AuthGateState extends State<AuthGate> {
   }
 
   Future<void> _initSession() async {
-    // Laisser le temps à l'animation du SplashScreen de se terminer (~2000ms)
     final splashFuture = Future.delayed(const Duration(milliseconds: 2200));
-
-    // Valider la session Firebase en arrière-plan si un utilisateur est en cache
     final validateFuture = AuthService().validateSession();
-
     await Future.wait([splashFuture, validateFuture]);
 
     if (mounted) {
@@ -50,12 +46,10 @@ class _AuthGateState extends State<AuthGate> {
 
   @override
   Widget build(BuildContext context) {
-    // Écran de chargement/animation au lancement initial
     if (!_splashCompleted) {
       return const SplashScreen();
     }
 
-    // Écoute de l'état d'authentification persistant
     return StreamBuilder<User?>(
       stream: AuthService().authStateChanges,
       initialData: AuthService().currentUser,
@@ -67,15 +61,45 @@ class _AuthGateState extends State<AuthGate> {
         final user = snapshot.data;
 
         if (user != null) {
-          // L'utilisateur est connecté (session persistée retrouvée avec succès)
-          final displayName = user.displayName?.trim();
-          final firstName = (displayName != null && displayName.isNotEmpty)
-              ? displayName.split(' ')[0]
-              : null;
-          return ScreenManage(userName: firstName);
+          return FutureBuilder<DocumentSnapshot>(
+            future: FirebaseFirestore.instance.collection('users').doc(user.uid).get(),
+            builder: (context, userSnapshot) {
+              if (userSnapshot.connectionState == ConnectionState.waiting) {
+                return const SplashScreen();
+              }
+
+              if (userSnapshot.hasData && userSnapshot.data!.exists) {
+                final userData = userSnapshot.data!.data() as Map<String, dynamic>;
+                final role = userData['role'];
+                final status = userData['status'];
+                
+                final displayName = user.displayName?.trim();
+                final firstName = (displayName != null && displayName.isNotEmpty)
+                    ? displayName.split(' ')[0]
+                    : null;
+
+                if (role == 'admin') {
+                  return const AdminDashboard();
+                }
+
+                if (role == 'dermatologist') {
+                  if (status == 'pending') {
+                    return const PendingVerificationPage();
+                  }
+                  if (status == 'rejected') {
+                    return const LandingPage();
+                  }
+                  return DermatologistDashboard(doctorName: firstName ?? 'Doctor');
+                }
+
+                return ScreenManage(userName: firstName);
+              }
+              
+              return const LandingPage();
+            },
+          );
         }
 
-        // Aucun utilisateur connecté -> Page d'accueil / onboarding
         return const LandingPage();
       },
     );
