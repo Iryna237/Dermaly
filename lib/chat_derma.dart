@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'app_colors.dart';
 import 'models/chat_message.dart';
+import 'models/consultation.dart';
 import 'services/chat_service.dart';
+import 'services/consultation_service.dart';
 import 'services/gemini_service.dart';
 import 'user_avatar.dart';
 
@@ -16,6 +18,26 @@ class DermatologistChatListPage extends StatefulWidget {
 }
 
 class _DermatologistChatListPageState extends State<DermatologistChatListPage> {
+  // Flux créé une seule fois : le recréer à chaque build relance la lecture Firestore
+  late final Stream<List<Consultation>> _consultations =
+      ConsultationService.watchForDermatologist();
+
+  Future<void> _respond(Consultation consultation, {required bool accept}) async {
+    try {
+      await ConsultationService.respond(consultation, accept: accept);
+    } catch (e) {
+      debugPrint('Erreur réponse à la demande: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not answer the request: '
+              '${e.toString().replaceAll('Exception: ', '')}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -28,67 +50,158 @@ class _DermatologistChatListPageState extends State<DermatologistChatListPage> {
           style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.darkPurple),
         ),
       ),
-      body: Column(
-        children: [
-          // AI Assistant Option
-          _buildAiAssistantTile(),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-            child: Divider(),
-          ),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Patients',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.darkPurple),
+      body: StreamBuilder<List<Consultation>>(
+        stream: _consultations,
+        builder: (context, snapshot) {
+          final consultations = snapshot.data ?? const <Consultation>[];
+          final pending = consultations.where((c) => c.isPending).toList();
+          final accepted = consultations.where((c) => c.isAccepted).toList();
+
+          return Column(
+            children: [
+              _buildAiAssistantTile(),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                child: Divider(),
               ),
-            ),
+              Expanded(
+                child: snapshot.hasError
+                    ? Padding(
+                        padding: const EdgeInsets.all(40),
+                        child: Text(
+                          'Unable to load consultation requests. ${snapshot.error}',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 12, color: AppColors.greyText, height: 1.4),
+                        ),
+                      )
+                    : snapshot.connectionState == ConnectionState.waiting
+                    ? const Center(child: CircularProgressIndicator(color: AppColors.primaryPurple))
+                    : ListView(
+                        children: [
+                          if (pending.isNotEmpty) ...[
+                            _buildSectionTitle('Consultation requests (${pending.length})'),
+                            for (final consultation in pending) _buildRequestTile(consultation),
+                            const SizedBox(height: 10),
+                          ],
+                          _buildSectionTitle('Patients'),
+                          if (accepted.isEmpty)
+                            const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 24, vertical: 30),
+                              child: Text(
+                                'No patient yet. Accept a consultation request to start a conversation.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(color: AppColors.greyText, fontSize: 13, height: 1.4),
+                              ),
+                            )
+                          else
+                            for (final consultation in accepted)
+                              _buildChatTile(
+                                name: consultation.patientName,
+                                subtitle: 'Click to open the consultation',
+                                userId: consultation.patientId,
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => DermaDetailedChatPage(
+                                        patientId: consultation.patientId,
+                                        patientName: consultation.patientName,
+                                        isAi: false,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                        ],
+                      ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildSectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Text(
+          title,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.darkPurple),
+        ),
+      ),
+    );
+  }
+
+  /// Demande en attente : c'est ici que le dermatologue ouvre, ou non, le chat
+  Widget _buildRequestTile(Consultation consultation) {
+    return Container(
+      margin: const EdgeInsets.only(left: 24, right: 24, bottom: 15),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.softPurple.withAlpha(90),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: AppColors.softGrey),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const CircleAvatar(
+                radius: 22,
+                backgroundColor: AppColors.lightPurple,
+                child: Icon(Icons.person_add_alt_1, color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      consultation.patientName,
+                      style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkPurple),
+                    ),
+                    const SizedBox(height: 2),
+                    const Text(
+                      'Wants to consult you',
+                      style: TextStyle(fontSize: 12, color: AppColors.greyText),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          // Patients List
-          Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('users')
-                  .where('role', isEqualTo: 'client')
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-                final patients = snapshot.data!.docs;
-
-                if (patients.isEmpty) {
-                  return const Center(
-                    child: Text('No patients registered yet.', style: TextStyle(color: AppColors.greyText)),
-                  );
-                }
-
-                return ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  itemCount: patients.length,
-                  itemBuilder: (context, index) {
-                    final data = patients[index].data() as Map<String, dynamic>;
-                    return _buildChatTile(
-                      name: data['fullName'] ?? 'Patient',
-                      subtitle: 'Click to start consultation',
-                      photo: userAvatarImage(data),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => DermaDetailedChatPage(
-                              patientId: data['uid'],
-                              patientName: data['fullName'] ?? 'Patient',
-                              isAi: false,
-                            ),
-                          ),
-                        );
-                      },
-                    );
-                  },
-                );
-              },
-            ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => _respond(consultation, accept: false),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.greyText,
+                    side: const BorderSide(color: AppColors.softGrey),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  ),
+                  child: const Text('Decline'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () => _respond(consultation, accept: true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryPurple,
+                    foregroundColor: AppColors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  ),
+                  child: const Text('Accept'),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -118,7 +231,7 @@ class _DermatologistChatListPageState extends State<DermatologistChatListPage> {
   Widget _buildChatTile({
     required String name,
     required String subtitle,
-    ImageProvider? photo,
+    String? userId,
     bool isAi = false,
     required VoidCallback onTap,
   }) {
@@ -132,14 +245,13 @@ class _DermatologistChatListPageState extends State<DermatologistChatListPage> {
       ),
       child: ListTile(
         contentPadding: EdgeInsets.zero,
-        leading: CircleAvatar(
-          radius: 25,
-          backgroundColor: isAi ? AppColors.primaryPurple : AppColors.lightPurple,
-          backgroundImage: photo,
-          child: photo == null
-              ? Icon(isAi ? Icons.auto_awesome : Icons.person, color: Colors.white)
-              : null,
-        ),
+        leading: userId == null
+            ? CircleAvatar(
+                radius: 25,
+                backgroundColor: isAi ? AppColors.primaryPurple : AppColors.lightPurple,
+                child: Icon(isAi ? Icons.auto_awesome : Icons.person, color: Colors.white),
+              )
+            : UserAvatar(userId: userId, backgroundColor: AppColors.lightPurple),
         title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkPurple)),
         subtitle: Text(subtitle, style: const TextStyle(fontSize: 12, color: AppColors.greyText)),
         trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.softGrey),

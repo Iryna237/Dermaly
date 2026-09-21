@@ -5,6 +5,9 @@ import 'package:intl/intl.dart';
 import 'app_colors.dart';
 import 'models/chat_message.dart';
 import 'services/chat_service.dart';
+import 'models/consultation.dart';
+import 'request_consultation.dart';
+import 'services/consultation_service.dart';
 import 'services/gemini_service.dart';
 import 'user_avatar.dart';
 
@@ -16,6 +19,17 @@ class ClientChatListPage extends StatefulWidget {
 }
 
 class _ClientChatListPageState extends State<ClientChatListPage> {
+  // Flux créé une seule fois : le recréer à chaque build relance la lecture Firestore
+  late final Stream<List<Consultation>> _consultations =
+      ConsultationService.watchForPatient();
+
+  void _openRequestPage() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const RequestConsultationPage()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -28,78 +42,187 @@ class _ClientChatListPageState extends State<ClientChatListPage> {
           style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.darkPurple),
         ),
       ),
-      body: Column(
-        children: [
-          // AI Assistant Option
-          _buildChatTile(
-            name: 'Dermaly AI Assistant',
-            subtitle: 'AI specialized in dermatology',
-            isAi: true,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const DetailedChatPage(isAi: true)),
-              );
-            },
-          ),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-            child: Divider(),
-          ),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Professional Consultations',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.darkPurple),
+      body: StreamBuilder<List<Consultation>>(
+        stream: _consultations,
+        builder: (context, snapshot) {
+          final consultations = snapshot.data ?? const <Consultation>[];
+          final accepted = consultations.where((c) => c.isAccepted).toList();
+          final pending = consultations.where((c) => c.isPending).toList();
+
+          return Column(
+            children: [
+              // L'assistant IA reste accessible sans aucune demande
+              _buildChatTile(
+                name: 'Dermaly AI Assistant',
+                subtitle: 'AI specialized in dermatology',
+                isAi: true,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const DetailedChatPage(isAi: true)),
+                  );
+                },
               ),
-            ),
-          ),
-          // Dermatologists List (Simplified: fetching all available doctors)
-          Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('users')
-                  .where('role', isEqualTo: 'dermatologist')
-                  .where('status', isEqualTo: 'accepted')
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-                final doctors = snapshot.data!.docs;
-
-                if (doctors.isEmpty) {
-                  return const Center(child: Text('No verified dermatologists available yet.', style: TextStyle(color: AppColors.greyText)));
-                }
-
-                return ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  itemCount: doctors.length,
-                  itemBuilder: (context, index) {
-                    final data = doctors[index].data() as Map<String, dynamic>;
-                    return _buildChatTile(
-                      name: 'Dr. ${data['fullName'] ?? 'Expert'}',
-                      subtitle: 'Clinical Dermatology',
-                      photo: userAvatarImage(data),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => DetailedChatPage(
-                              isAi: false,
-                              peerId: data['uid'],
-                              peerName: 'Dr. ${data['fullName']}',
-                            ),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                child: Divider(),
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Professional Consultations',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.darkPurple),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: snapshot.hasError
+                    ? _buildError(snapshot.error.toString())
+                    : snapshot.connectionState == ConnectionState.waiting
+                    ? const Center(child: CircularProgressIndicator(color: AppColors.primaryPurple))
+                    : (accepted.isEmpty && pending.isEmpty)
+                        ? _buildEmptyState()
+                        : ListView(
+                            children: [
+                              // Le chat n'apparait qu'une fois la demande acceptée
+                              for (final consultation in accepted)
+                                _buildChatTile(
+                                  name: consultation.dermatologistName,
+                                  subtitle: 'Consultation accepted · tap to chat',
+                                  userId: consultation.dermatologistId,
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => DetailedChatPage(
+                                          isAi: false,
+                                          peerId: consultation.dermatologistId,
+                                          peerName: consultation.dermatologistName,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              for (final consultation in pending)
+                                _buildPendingTile(consultation),
+                            ],
                           ),
-                        );
-                      },
-                    );
-                  },
-                );
-              },
+              ),
+            ],
+          );
+        },
+      ),
+      // Première demande : bouton explicite. Ensuite, un simple « + »
+      floatingActionButton: StreamBuilder<List<Consultation>>(
+        stream: _consultations,
+        builder: (context, snapshot) {
+          final hasAny = (snapshot.data ?? const <Consultation>[])
+              .any((c) => c.isAccepted || c.isPending);
+
+          if (hasAny) {
+            return FloatingActionButton(
+              onPressed: _openRequestPage,
+              backgroundColor: AppColors.primaryPurple,
+              foregroundColor: AppColors.white,
+              tooltip: 'Request another consultation',
+              child: const Icon(Icons.add),
+            );
+          }
+
+          return FloatingActionButton.extended(
+            onPressed: _openRequestPage,
+            backgroundColor: AppColors.primaryPurple,
+            foregroundColor: AppColors.white,
+            icon: const Icon(Icons.add),
+            label: const Text(
+              'Request consultation',
+              style: TextStyle(fontWeight: FontWeight.bold),
             ),
-          ),
-        ],
+          );
+        },
+      ),
+    );
+  }
+
+  /// Une erreur de lecture ne doit pas ressembler à une absence de consultation
+  Widget _buildError(String message) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 40),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.cloud_off_rounded, size: 48, color: AppColors.softGrey),
+            const SizedBox(height: 16),
+            const Text(
+              'Unable to load your consultations',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.darkPurple),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 12, color: AppColors.greyText, height: 1.4),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 40),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.medical_services_outlined, size: 48, color: AppColors.softGrey),
+            const SizedBox(height: 16),
+            const Text(
+              'No consultation yet',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.darkPurple),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Request a consultation to start chatting with a dermatologist. '
+              'They open the conversation once they accept.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13, color: AppColors.greyText, height: 1.4),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Demande envoyée, pas encore acceptée : visible mais non cliquable
+  Widget _buildPendingTile(Consultation consultation) {
+    return Container(
+      margin: const EdgeInsets.only(left: 24, right: 24, bottom: 15),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: AppColors.softGrey),
+      ),
+      child: ListTile(
+        contentPadding: EdgeInsets.zero,
+        leading: const CircleAvatar(
+          radius: 25,
+          backgroundColor: AppColors.softPurple,
+          child: Icon(Icons.hourglass_empty_rounded, color: AppColors.primaryPurple),
+        ),
+        title: Text(
+          consultation.dermatologistName,
+          style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkPurple),
+        ),
+        subtitle: const Text(
+          'Request sent · waiting for approval',
+          style: TextStyle(fontSize: 12, color: AppColors.greyText),
+        ),
       ),
     );
   }
@@ -107,7 +230,7 @@ class _ClientChatListPageState extends State<ClientChatListPage> {
   Widget _buildChatTile({
     required String name,
     required String subtitle,
-    ImageProvider? photo,
+    String? userId,
     bool isAi = false,
     required VoidCallback onTap,
   }) {
@@ -121,14 +244,13 @@ class _ClientChatListPageState extends State<ClientChatListPage> {
       ),
       child: ListTile(
         contentPadding: EdgeInsets.zero,
-        leading: CircleAvatar(
-          radius: 25,
-          backgroundColor: isAi ? AppColors.primaryPurple : AppColors.lightPurple,
-          backgroundImage: photo,
-          child: photo == null
-              ? Icon(isAi ? Icons.auto_awesome : Icons.person, color: Colors.white)
-              : null,
-        ),
+        leading: userId == null
+            ? CircleAvatar(
+                radius: 25,
+                backgroundColor: isAi ? AppColors.primaryPurple : AppColors.lightPurple,
+                child: Icon(isAi ? Icons.auto_awesome : Icons.person, color: Colors.white),
+              )
+            : UserAvatar(userId: userId, backgroundColor: AppColors.lightPurple),
         title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkPurple)),
         subtitle: Text(subtitle, style: const TextStyle(fontSize: 12, color: AppColors.greyText)),
         trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.softGrey),
