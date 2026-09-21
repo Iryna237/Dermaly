@@ -10,8 +10,9 @@ import 'consultation_service.dart';
 import 'notification_log.dart';
 import 'notification_service.dart';
 
-/// Prévient d'un nouveau message dans une consultation : le patient quand son
-/// dermatologue lui écrit, le dermatologue quand un patient lui écrit.
+/// Prévient de ce qui arrive dans une consultation : un nouveau message, pour
+/// le patient comme pour le dermatologue, et les demandes reçues côté
+/// dermatologue.
 ///
 /// Une notification locale ne peut être déclenchée que par l'application :
 /// l'écoute ne vit donc que tant que l'app tourne. Les messages reçus pendant
@@ -27,6 +28,10 @@ class MessageNotifier {
   static bool _asDermatologist = false;
   static final Map<String, StreamSubscription<QuerySnapshot<Map<String, dynamic>>>>
       _chats = {};
+
+  /// Demandes déjà traitées dans cette session : évite d'interroger Firestore
+  /// à chaque émission du flux pour une demande déjà journalisée.
+  static final Set<String> _loggedRequests = {};
 
   /// Conversation actuellement ouverte : pas de bannière pour un message que
   /// l'utilisateur est en train de lire.
@@ -71,6 +76,7 @@ class MessageNotifier {
       subscription.cancel();
     }
     _chats.clear();
+    _loggedRequests.clear();
     openChatId = null;
   }
 
@@ -78,6 +84,8 @@ class MessageNotifier {
   static void _syncChats(List<Consultation> consultations) {
     final uid = _uid;
     if (uid == null) return;
+
+    if (_asDermatologist) _logRequests(consultations);
 
     final accepted = {
       for (final consultation in consultations)
@@ -107,6 +115,34 @@ class MessageNotifier {
             onError: (Object e) => debugPrint('Erreur écoute du chat $chatId: $e'),
           );
     });
+  }
+
+  /// Demandes en attente : elles alimentent la cloche du dermatologue.
+  /// Une demande refusée puis renvoyée porte une nouvelle date, donc une
+  /// nouvelle entrée.
+  static Future<void> _logRequests(List<Consultation> consultations) async {
+    for (final consultation in consultations) {
+      if (!consultation.isPending) continue;
+
+      final date = consultation.createdAt ?? DateTime.now();
+      final id = 'request_${consultation.id}_${date.millisecondsSinceEpoch}';
+      if (!_loggedRequests.add(id)) continue;
+
+      final notification = AppNotification(
+        id: id,
+        title: 'New consultation request',
+        body: '${consultation.patientName} would like to consult you.',
+        date: date,
+      );
+
+      if (await NotificationLog.addIfMissing(notification)) {
+        await NotificationService.showNow(
+          id: _notificationId(notification.id),
+          title: notification.title,
+          body: notification.body,
+        );
+      }
+    }
   }
 
   static Future<void> _onMessage(

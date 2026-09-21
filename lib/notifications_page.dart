@@ -9,7 +9,15 @@ import 'services/notification_log.dart';
 /// Les notifications sont marquées comme lues dès l'ouverture : c'est ce qui
 /// fait disparaître le point de la cloche.
 class NotificationsPage extends StatefulWidget {
-  const NotificationsPage({super.key});
+  /// Texte affiché quand le journal est vide : le contenu diffère entre le
+  /// patient (rappels de routine et de scan) et le dermatologue (demandes).
+  final String emptyMessage;
+
+  const NotificationsPage({
+    super.key,
+    this.emptyMessage =
+        'Your routine reminders and monthly scan reminders will show up here.',
+  });
 
   @override
   State<NotificationsPage> createState() => _NotificationsPageState();
@@ -68,7 +76,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
             return _buildMessage(
               Icons.notifications_none_rounded,
               'No notification yet',
-              'Your routine reminders and monthly scan reminders will show up here.',
+              widget.emptyMessage,
             );
           }
 
@@ -84,11 +92,15 @@ class _NotificationsPageState extends State<NotificationsPage> {
   }
 
   Widget _buildTile(AppNotification notification) {
-    final icon = notification.isMessage
-        ? Icons.chat_bubble_rounded
-        : notification.isScan
-            ? Icons.camera_alt_rounded
-            : (notification.isMorning ? Icons.wb_sunny_rounded : Icons.nights_stay_rounded);
+    final icon = notification.isRequest
+        ? Icons.person_add_alt_1_rounded
+        : notification.isMessage
+            ? Icons.chat_bubble_rounded
+            : notification.isScan
+                ? Icons.camera_alt_rounded
+                : (notification.isMorning
+                    ? Icons.wb_sunny_rounded
+                    : Icons.nights_stay_rounded);
 
     return Container(
       padding: const EdgeInsets.all(16),

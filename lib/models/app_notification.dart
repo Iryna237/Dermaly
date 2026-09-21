@@ -24,6 +24,9 @@ class AppNotification {
   /// Vrai pour un message reçu d'un dermatologue
   bool get isMessage => id.startsWith('message_');
 
+  /// Vrai pour une demande de consultation reçue par un dermatologue
+  bool get isRequest => id.startsWith('request_');
+
   /// Vrai pour un rappel du matin (sert à choisir l'icône)
   bool get isMorning => id.startsWith('routine_morning');
 

@@ -10,7 +10,10 @@ import 'appointments.dart';
 import 'chat_derma.dart';
 import 'derma_profil.dart';
 import 'pages/profile_page.dart';
+import 'models/app_notification.dart';
 import 'models/consultation.dart';
+import 'notifications_page.dart';
+import 'services/notification_log.dart';
 import 'patients.dart';
 import 'services/consultation_service.dart';
 import 'services/message_notifier.dart';
@@ -30,6 +33,9 @@ class _DermatologistDashboardState extends State<DermatologistDashboard> {
   final String _uid = FirebaseAuth.instance.currentUser?.uid ?? '';
 
   late final List<Widget> _pages;
+
+  // Flux créé une seule fois : le recréer à chaque build relance la lecture Firestore
+  late final Stream<List<AppNotification>> _notifications = NotificationLog.watch();
 
   @override
   void initState() {
@@ -131,6 +137,52 @@ class _DermatologistDashboardState extends State<DermatologistDashboard> {
     );
   }
 
+  /// Cloche du tableau de bord : le point ne s'affiche que s'il reste des
+  /// notifications non lues, et disparaît dès que la page les a marquées lues.
+  Widget _buildNotificationBell() {
+    return StreamBuilder<List<AppNotification>>(
+      stream: _notifications,
+      builder: (context, snapshot) {
+        final unread = snapshot.data?.where((n) => !n.read).length ?? 0;
+
+        return IconButton(
+          tooltip: 'Notifications',
+          icon: Stack(
+            alignment: Alignment.center,
+            clipBehavior: Clip.none,
+            children: [
+              const Icon(Icons.notifications_none_rounded,
+                  size: 28, color: AppColors.terracotta),
+              if (unread > 0)
+                Positioned(
+                  right: 2,
+                  top: 2,
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const NotificationsPage(
+                emptyMessage:
+                    'Consultation requests and messages from your patients '
+                    'will show up here.',
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildHomeContent() {
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20),
@@ -165,24 +217,7 @@ class _DermatologistDashboardState extends State<DermatologistDashboard> {
                   // ✅ Avatar avec photo
                   _buildHeaderAvatar(),
                   const SizedBox(width: 12),
-                  Stack(
-                    children: [
-                      const Icon(Icons.notifications_none_rounded,
-                          size: 28, color: AppColors.terracotta),
-                      Positioned(
-                        right: 4,
-                        top: 4,
-                        child: Container(
-                          width: 8,
-                          height: 8,
-                          decoration: const BoxDecoration(
-                            color: Colors.red,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                  _buildNotificationBell(),
                 ],
               ),
             ],
