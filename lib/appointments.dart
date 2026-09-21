@@ -1,112 +1,124 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'app_colors.dart';
 
-class AppointmentsPage extends StatelessWidget {
+import 'app_colors.dart';
+import 'models/consultation.dart';
+import 'services/consultation_service.dart';
+import 'user_avatar.dart';
+
+/// Demandes de consultation reçues par le dermatologue connecté.
+///
+/// C'est ici que la demande d'un patient arrive, et c'est l'acceptation qui la
+/// fait apparaître dans la messagerie.
+class AppointmentsPage extends StatefulWidget {
   const AppointmentsPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final String uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+  State<AppointmentsPage> createState() => _AppointmentsPageState();
+}
 
+class _AppointmentsPageState extends State<AppointmentsPage> {
+  // Flux créé une seule fois : le recréer à chaque build relance la lecture Firestore
+  late final Stream<List<Consultation>> _consultations =
+      ConsultationService.watchForDermatologist();
+
+  Future<void> _respond(Consultation consultation, {required bool accept}) async {
+    try {
+      await ConsultationService.respond(consultation, accept: accept);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(accept
+              ? '${consultation.patientName} added to your messages.'
+              : 'Request from ${consultation.patientName} declined.'),
+          backgroundColor: accept ? AppColors.primaryPurple : AppColors.greyText,
+        ),
+      );
+    } catch (e) {
+      debugPrint('Erreur réponse à la demande: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not answer the request: '
+              '${e.toString().replaceAll('Exception: ', '')}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.white,
       appBar: AppBar(
         backgroundColor: AppColors.white,
         elevation: 0,
         title: const Text(
-          'Appointments',
+          'Consultation Requests',
           style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.darkPurple),
         ),
         centerTitle: false,
       ),
-      body: Column(
-        children: [
-          // Summary Stats
-          Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('appointments')
-                  .where('doctorId', isEqualTo: uid)
-                  .snapshots(),
-              builder: (context, snapshot) {
-                int total = 0;
-                int pending = 0;
-                int confirmed = 0;
+      body: StreamBuilder<List<Consultation>>(
+        stream: _consultations,
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return _buildMessage('Unable to load your requests.\n${snapshot.error}');
+          }
 
-                if (snapshot.hasData) {
-                  total = snapshot.data!.docs.length;
-                  for (var doc in snapshot.data!.docs) {
-                    final status = doc.get('status') ?? 'pending';
-                    if (status == 'pending') pending++;
-                    if (status == 'accepted' || status == 'confirmed') confirmed++;
-                  }
-                }
+          final consultations = snapshot.data ?? const <Consultation>[];
+          final pending = consultations.where((c) => c.isPending).length;
+          final accepted = consultations.where((c) => c.isAccepted).length;
 
-                return Row(
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Row(
                   children: [
-                    _buildStatCard('Total', total.toString(), AppColors.lightPurple),
+                    // Total : toutes les demandes reçues, refus compris
+                    _buildStatCard('Total', consultations.length, AppColors.lightPurple),
                     const SizedBox(width: 12),
-                    _buildStatCard('Pending', pending.toString(), AppColors.softPurple),
+                    _buildStatCard('Pending', pending, AppColors.softPurple),
                     const SizedBox(width: 12),
-                    _buildStatCard('Confirmed', confirmed.toString(), const Color(0xFFE8F5E9)),
+                    _buildStatCard('Confirmed', accepted, const Color(0xFFE8F5E9)),
                   ],
-                );
-              },
-            ),
-          ),
-
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 24.0),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Recent Requests',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.darkPurple),
+                ),
               ),
-            ),
-          ),
-
-          Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('appointments')
-                  .where('doctorId', isEqualTo: uid)
-                  .orderBy('createdAt', descending: true)
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                final appointments = snapshot.data?.docs ?? [];
-
-                if (appointments.isEmpty) {
-                  return const Center(
-                    child: Text('No appointment requests found', style: TextStyle(color: AppColors.greyText)),
-                  );
-                }
-
-                return ListView.builder(
-                  padding: const EdgeInsets.all(24),
-                  itemCount: appointments.length,
-                  itemBuilder: (context, index) {
-                    final doc = appointments[index];
-                    final data = doc.data() as Map<String, dynamic>;
-                    return _buildAppointmentCard(context, doc.id, data);
-                  },
-                );
-              },
-            ),
-          ),
-        ],
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 24.0),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Recent Requests',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.darkPurple),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: snapshot.connectionState == ConnectionState.waiting
+                    ? const Center(child: CircularProgressIndicator())
+                    : consultations.isEmpty
+                        ? _buildMessage(
+                            'No consultation request yet.\n'
+                            'Patients reach you from the Consult Dermatologist screen.',
+                          )
+                        : ListView.builder(
+                            padding: const EdgeInsets.all(24),
+                            itemCount: consultations.length,
+                            itemBuilder: (context, index) =>
+                                _buildRequestCard(consultations[index]),
+                          ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 
-  Widget _buildStatCard(String label, String value, Color color) {
+  Widget _buildStatCard(String label, int value, Color color) {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(16),
@@ -117,34 +129,27 @@ class AppointmentsPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: const TextStyle(fontSize: 12, color: AppColors.greyText, fontWeight: FontWeight.w600)),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 12, color: AppColors.greyText, fontWeight: FontWeight.w600),
+            ),
             const SizedBox(height: 4),
-            Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.darkPurple)),
+            Text(
+              '$value',
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.darkPurple),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildAppointmentCard(BuildContext context, String docId, Map<String, dynamic> data) {
-    final status = data['status'] ?? 'pending';
-    final name = data['patientName'] ?? 'Unknown Patient';
-    final type = data['type'] ?? 'Consultation';
-    final date = data['date'] ?? 'No date';
-    final time = data['time'] ?? 'No time';
-
-    Color statusColor;
-    switch (status) {
-      case 'accepted':
-      case 'confirmed':
-        statusColor = Colors.green;
-        break;
-      case 'rejected':
-        statusColor = Colors.red;
-        break;
-      default:
-        statusColor = Colors.orange;
-    }
+  Widget _buildRequestCard(Consultation consultation) {
+    final (statusLabel, statusColor) = switch (consultation.status) {
+      ConsultationStatus.accepted => ('ACCEPTED', Colors.green),
+      ConsultationStatus.declined => ('DECLINED', Colors.red),
+      ConsultationStatus.pending => ('PENDING', Colors.orange),
+    };
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -154,25 +159,34 @@ class AppointmentsPage extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppColors.softGrey),
         boxShadow: [
-          BoxShadow(color: Colors.black.withAlpha(5), blurRadius: 10, offset: const Offset(0, 4))
+          BoxShadow(color: Colors.black.withAlpha(5), blurRadius: 10, offset: const Offset(0, 4)),
         ],
       ),
       child: Column(
         children: [
           Row(
             children: [
-              CircleAvatar(
-                radius: 25,
+              UserAvatar(
+                userId: consultation.patientId,
                 backgroundColor: AppColors.lightPurple,
-                child: Text(name[0].toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryPurple)),
               ),
               const SizedBox(width: 15),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.darkPurple)),
-                    Text(type, style: const TextStyle(color: AppColors.greyText, fontSize: 13)),
+                    Text(
+                      consultation.patientName,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: AppColors.darkPurple,
+                      ),
+                    ),
+                    const Text(
+                      'Consultation request',
+                      style: TextStyle(color: AppColors.greyText, fontSize: 13),
+                    ),
                   ],
                 ),
               ),
@@ -183,7 +197,7 @@ class AppointmentsPage extends StatelessWidget {
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
-                  status.toUpperCase(),
+                  statusLabel,
                   style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.bold),
                 ),
               ),
@@ -191,28 +205,23 @@ class AppointmentsPage extends StatelessWidget {
           ),
           const Divider(height: 30),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  const Icon(Icons.calendar_today, size: 16, color: AppColors.terracotta),
-                  const SizedBox(width: 8),
-                  Text(date, style: const TextStyle(fontSize: 13, color: AppColors.darkPurple)),
-                  const SizedBox(width: 15),
-                  const Icon(Icons.access_time, size: 16, color: AppColors.terracotta),
-                  const SizedBox(width: 8),
-                  Text(time, style: const TextStyle(fontSize: 13, color: AppColors.darkPurple)),
-                ],
+              const Icon(Icons.calendar_today, size: 16, color: AppColors.terracotta),
+              const SizedBox(width: 8),
+              Text(
+                _formatDate(consultation.createdAt),
+                style: const TextStyle(fontSize: 13, color: AppColors.darkPurple),
               ),
             ],
           ),
-          if (status == 'pending') ...[
+          // Seule une demande en attente appelle une décision
+          if (consultation.isPending) ...[
             const SizedBox(height: 20),
             Row(
               children: [
                 Expanded(
                   child: OutlinedButton(
-                    onPressed: () => _updateStatus(docId, 'rejected'),
+                    onPressed: () => _respond(consultation, accept: false),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.red,
                       side: const BorderSide(color: Colors.red),
@@ -224,7 +233,7 @@ class AppointmentsPage extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: () => _updateStatus(docId, 'accepted'),
+                    onPressed: () => _respond(consultation, accept: true),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green,
                       foregroundColor: AppColors.white,
@@ -242,9 +251,31 @@ class AppointmentsPage extends StatelessWidget {
     );
   }
 
-  Future<void> _updateStatus(String docId, String status) async {
-    await FirebaseFirestore.instance.collection('appointments').doc(docId).update({
-      'status': status,
-    });
+  Widget _buildMessage(String message) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(40),
+        child: Text(
+          message,
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: AppColors.greyText, fontSize: 13, height: 1.5),
+        ),
+      ),
+    );
+  }
+
+  static const List<String> _months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+  ];
+
+  String _formatDate(DateTime? date) {
+    if (date == null) return 'Date unknown';
+
+    final hour = date.hour > 12 ? date.hour - 12 : (date.hour == 0 ? 12 : date.hour);
+    final minute = date.minute.toString().padLeft(2, '0');
+    final amPm = date.hour >= 12 ? 'PM' : 'AM';
+
+    return '${_months[date.month - 1]} ${date.day}, ${date.year} · $hour:$minute $amPm';
   }
 }
