@@ -68,7 +68,7 @@ class _DermatologistChatListPageState extends State<DermatologistChatListPage> {
                             const Padding(
                               padding: EdgeInsets.symmetric(horizontal: 24, vertical: 30),
                               child: Text(
-                                'No patient yet. Accept a consultation request from the Appts tab '
+                                'No patient yet. Accept a consultation request from the Requests tab '
                                 'to start a conversation.',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(color: AppColors.greyText, fontSize: 13, height: 1.4),

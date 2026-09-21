@@ -77,7 +77,7 @@ class _DermatologistDashboardState extends State<DermatologistDashboard> {
             BottomNavigationBarItem(
                 icon: Icon(Icons.people_alt_outlined), label: 'Patients'),
             BottomNavigationBarItem(
-                icon: Icon(Icons.calendar_today_rounded), label: 'Appts'),
+                icon: Icon(Icons.inbox_rounded), label: 'Requests'),
             BottomNavigationBarItem(
                 icon: Icon(Icons.chat_bubble_outline_rounded), label: 'Chat'),
             BottomNavigationBarItem(
