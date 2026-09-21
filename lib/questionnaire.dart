@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
 import 'make_skin_analysis.dart';
+import 'services/questionnaire_storage.dart';
 
 class QuestionnairePage extends StatefulWidget {
   const QuestionnairePage({super.key});
@@ -10,6 +11,22 @@ class QuestionnairePage extends StatefulWidget {
 }
 
 class _QuestionnairePageState extends State<QuestionnairePage> {
+  /// Intitulés des questions, utilisés pour l'affichage et pour enregistrer les
+  /// réponses sous une clé lisible plutôt qu'un numéro de page.
+  static const Map<int, String> questions = {
+    1: 'How would you describe your skin?',
+    2: 'Which skincare products do you currently use?',
+    3: 'Are you using suncream protection?',
+    4: 'How sensitive is your skin?',
+    5: 'What are your main skin concerns?',
+    6: 'Are you allergic to certain cosmetic product?',
+    7: 'If yes, which products or ingredients cause it?',
+    8: 'During the day, which part of your face becomes the shiniest?',
+    9: 'Do you experience redness or irritation on your face?',
+    10: 'Do you frequently get pimples or breakouts?',
+    11: 'Does your skin react quickly when you try a new product?',
+  };
+
   final PageController _pageController = PageController();
   int _currentPage = 0;
 
@@ -102,12 +119,32 @@ class _QuestionnairePageState extends State<QuestionnairePage> {
         return;
       }
 
+      // Les réponses décrivent ce que la photo ne montre pas : elles doivent
+      // survivre à cette page pour atteindre Gemini et le dermatologue
+      _saveAnswers();
+
       // Naviguer vers l'analyse
       Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => const MakeSkinAnalysisPage()),
       );
     }
+  }
+
+  /// Enregistre les réponses dans le profil. L'analyse n'attend pas l'écriture :
+  /// un échec réseau ne doit pas empêcher le scan, il prive seulement Gemini du
+  /// contexte déclaré.
+  void _saveAnswers() {
+    final answers = <String, List<String>>{
+      for (final entry in _answers.entries)
+        if (questions[entry.key] != null && entry.value.isNotEmpty)
+          questions[entry.key]!: entry.value,
+    };
+    if (answers.isEmpty) return;
+
+    QuestionnaireStorage.save(answers).catchError((Object e) {
+      debugPrint('Erreur sauvegarde du questionnaire: $e');
+    });
   }
 
   // Afficher un message d'erreur
@@ -165,67 +202,67 @@ class _QuestionnairePageState extends State<QuestionnairePage> {
           _buildIntroPage(),
           _buildQuestionPage(
             1,
-            'How would you describe your skin?',
+            questions[1]!,
             ['Dry', 'Oily', 'Normal', 'Combination', 'Sensitive', 'Mature'],
             multiple: true,
           ),
           _buildQuestionPage(
             2,
-            'Which skincare products do you currently use?',
+            questions[2]!,
             ['Cleanser', 'Moisturizer', 'SPF', 'Serum', 'Toner', 'Exfoliator'],
             multiple: true,
           ),
           _buildQuestionPage(
             3,
-            'Are you using suncream protection?',
+            questions[3]!,
             ['Every day', 'Sometimes', 'Never', 'Only in summer'],
             multiple: false,
           ),
           _buildQuestionPage(
             4,
-            'How sensitive is your skin?',
+            questions[4]!,
             ['Not sensitive', 'Slightly sensitive', 'Moderately sensitive', 'Very sensitive'],
             multiple: false,
           ),
           _buildQuestionPage(
             5,
-            'What are your main skin concerns?',
+            questions[5]!,
             ['Acne', 'Aging', 'Dullness', 'Dark spots', 'Redness', 'Texture'],
             multiple: true,
           ),
           _buildQuestionPage(
             6,
-            'Are you allergic to certain cosmetic product?',
+            questions[6]!,
             ['Yes', 'No', 'Not sure'],
             multiple: false,
           ),
           _buildQuestionPage(
             7,
-            'If yes, which products or ingredients cause it?',
+            questions[7]!,
             ['Fragrance', 'Preservatives', 'Specific oils', 'Retinol', 'Vitamin C', 'Other'],
             multiple: true,
           ),
           _buildQuestionPage(
             8,
-            'During the day, which part of your face becomes the shiniest?',
+            questions[8]!,
             ['T-zone', 'Cheeks', 'Forehead', 'Whole face', 'None'],
             multiple: false,
           ),
           _buildQuestionPage(
             9,
-            'Do you experience redness or irritation on your face?',
+            questions[9]!,
             ['Frequently', 'Sometimes', 'Rarely', 'Never'],
             multiple: false,
           ),
           _buildQuestionPage(
             10,
-            'Do you frequently get pimples or breakouts?',
+            questions[10]!,
             ['Yes', 'No', 'Only during hormonal cycles'],
             multiple: false,
           ),
           _buildQuestionPage(
             11,
-            'Does your skin react quickly when you try a new product?',
+            questions[11]!,
             ['Yes, always', 'Sometimes', 'Rarely', 'Never'],
             multiple: false,
           ),

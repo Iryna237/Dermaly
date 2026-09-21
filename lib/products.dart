@@ -4,6 +4,7 @@ import 'models/routine_product.dart';
 import 'routine.dart';
 import 'services/gemini_service.dart';
 import 'services/notification_service.dart';
+import 'services/questionnaire_storage.dart';
 import 'services/routine_storage.dart';
 
 /// Produits proposés par Gemini à partir de la dernière analyse de peau.
@@ -45,7 +46,19 @@ class _RecommendedProductsPageState extends State<RecommendedProductsPage> {
     });
 
     try {
-      final products = await GeminiService.recommendRoutine(widget.analysis);
+      // Allergies et produits déjà utilisés : sans eux, une recommandation peut
+      // proposer un actif que l'utilisateur a déclaré ne pas supporter
+      Map<String, List<String>>? questionnaire;
+      try {
+        questionnaire = await QuestionnaireStorage.load();
+      } catch (e) {
+        debugPrint('Erreur chargement du questionnaire: $e');
+      }
+
+      final products = await GeminiService.recommendRoutine(
+        widget.analysis,
+        questionnaire: questionnaire,
+      );
 
       // La recommandation devient la routine de l'utilisateur. Un échec de
       // sauvegarde n'empêche pas de consulter les produits, il est juste signalé.

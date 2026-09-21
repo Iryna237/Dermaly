@@ -7,6 +7,7 @@ import 'app_colors.dart';
 import 'make_skin_analysis.dart';
 import 'services/gemini_service.dart';
 import 'services/notification_service.dart';
+import 'services/questionnaire_storage.dart';
 import 'services/skin_analysis_storage.dart';
 import 'services/skin_progress_storage.dart';
 import 'skin_result.dart';
@@ -150,7 +151,19 @@ class _SkinAnalysisProgressPageState extends State<SkinAnalysisProgressPage>
     });
 
     try {
-      var result = await GeminiService.analyzeSkin(widget.imagePath);
+      // Réponses du questionnaire : ce que la photo ne montre pas. Leur absence
+      // ne doit pas empêcher l'analyse.
+      Map<String, List<String>>? questionnaire;
+      try {
+        questionnaire = await QuestionnaireStorage.load();
+      } catch (e) {
+        debugPrint('Erreur chargement du questionnaire: $e');
+      }
+
+      var result = await GeminiService.analyzeSkin(
+        widget.imagePath,
+        questionnaire: questionnaire,
+      );
 
       if (widget.purpose == ScanPurpose.monthlyProgress) {
         await _finishMonthlyScan(result);

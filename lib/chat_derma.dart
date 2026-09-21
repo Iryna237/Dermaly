@@ -390,15 +390,23 @@ class _DermaDetailedChatPageState extends State<DermaDetailedChatPage> {
   /// l'application : le champ `lastSkinAnalysis` du profil, le dernier scan
   /// mensuel, puis la collection `analyses`. Aucun n'est garanti : un patient
   /// peut n'avoir fait que des scans mensuels, ou aucune analyse du tout.
-  Future<({Map<String, dynamic> data, DateTime? date})?> _loadLatestAnalysis() async {
+  Future<({Map<String, dynamic> data, DateTime? date, Map<String, List<String>>? questionnaire})?>
+      _loadLatestAnalysis() async {
     final patient = FirebaseFirestore.instance.collection('users').doc(widget.patientId);
 
     try {
       final profile = await patient.get();
+      // Le questionnaire vit dans le même document : aucune lecture de plus
+      final questionnaire = _questionnaireFrom(profile.data()?['questionnaire']);
+
       final last = profile.data()?['lastSkinAnalysis'];
       if (last is Map) {
         final data = Map<String, dynamic>.from(last);
-        return (data: data, date: _analysisDate(data['analyzedAt']));
+        return (
+          data: data,
+          date: _analysisDate(data['analyzedAt']),
+          questionnaire: questionnaire,
+        );
       }
 
       final scans = await patient
@@ -408,7 +416,11 @@ class _DermaDetailedChatPageState extends State<DermaDetailedChatPage> {
           .get();
       if (scans.docs.isNotEmpty) {
         final data = scans.docs.first.data();
-        return (data: data, date: _analysisDate(data['analyzedAt']));
+        return (
+          data: data,
+          date: _analysisDate(data['analyzedAt']),
+          questionnaire: questionnaire,
+        );
       }
 
       final analyses = await patient
@@ -418,13 +430,34 @@ class _DermaDetailedChatPageState extends State<DermaDetailedChatPage> {
           .get();
       if (analyses.docs.isNotEmpty) {
         final data = analyses.docs.first.data();
-        return (data: data, date: _analysisDate(data['timestamp']));
+        return (
+          data: data,
+          date: _analysisDate(data['timestamp']),
+          questionnaire: questionnaire,
+        );
       }
     } catch (e) {
       debugPrint('Erreur chargement analyse du patient: $e');
     }
 
     return null;
+  }
+
+  /// Réponses déclarées par le patient, telles qu'enregistrées par le questionnaire
+  static Map<String, List<String>>? _questionnaireFrom(Object? raw) {
+    if (raw is! Map) return null;
+
+    final answers = raw['answers'];
+    if (answers is! Map) return null;
+
+    final decoded = <String, List<String>>{};
+    answers.forEach((question, value) {
+      if (value is List && value.isNotEmpty) {
+        decoded['$question'] = [for (final option in value) '$option'];
+      }
+    });
+
+    return decoded.isEmpty ? null : decoded;
   }
 
   /// La date est un entier pour le stockage local, un Timestamp côté serveur
@@ -440,7 +473,8 @@ class _DermaDetailedChatPageState extends State<DermaDetailedChatPage> {
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
       builder: (context) {
-        return FutureBuilder<({Map<String, dynamic> data, DateTime? date})?>(
+        return FutureBuilder<
+            ({Map<String, dynamic> data, DateTime? date, Map<String, List<String>>? questionnaire})?>(
           future: _loadLatestAnalysis(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
@@ -516,6 +550,38 @@ class _DermaDetailedChatPageState extends State<DermaDetailedChatPage> {
                           ],
                         ),
                       )),
+
+                      // Déclarations du patient : allergies, produits utilisés,
+                      // réactivité. Invisibles sur une photo, décisives pour prescrire.
+                      if (result.questionnaire != null) ...[
+                        const SizedBox(height: 25),
+                        const Text(
+                          'Reported by the patient:',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        ),
+                        const SizedBox(height: 10),
+                        ...result.questionnaire!.entries.map((entry) => Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 5.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    entry.key,
+                                    style: const TextStyle(fontSize: 13, color: AppColors.greyText),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    entry.value.join(', '),
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.darkPurple,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )),
+                      ],
 
                       const SizedBox(height: 25),
                       const Text('Clinical Summary:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),

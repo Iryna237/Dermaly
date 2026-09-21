@@ -349,8 +349,32 @@ class GeminiService {
     return parsed;
   }
 
+  /// Contexte déclaré par l'utilisateur dans le questionnaire.
+  ///
+  /// Présenté comme une déclaration à recouper, jamais comme un constat : ce que
+  /// la photo montre prime, mais l'habitude de vie et les allergies ne se voient
+  /// pas sur une image.
+  static String _declaredContext(Map<String, List<String>>? questionnaire) {
+    if (questionnaire == null || questionnaire.isEmpty) return '';
+
+    final lines = [
+      for (final entry in questionnaire.entries) '- ${entry.key} ${entry.value.join(', ')}',
+    ].join('\n');
+
+    return '''
+
+
+The user also answered a questionnaire about their skin. These are self-reported
+statements, not observations: weigh them against what you actually see in the
+photo, and never repeat them back as if you had seen them.
+$lines''';
+  }
+
   /// Analyzes a facial photo and returns a structured [SkinAnalysisResult]
-  static Future<SkinAnalysisResult> analyzeSkin(String imagePath) async {
+  static Future<SkinAnalysisResult> analyzeSkin(
+    String imagePath, {
+    Map<String, List<String>>? questionnaire,
+  }) async {
     // 1. Read image bytes (either local file or asset)
     final Uint8List imageBytes;
     final String mimeType;
@@ -372,8 +396,8 @@ class GeminiService {
     final base64Image = base64Encode(imageBytes);
 
     // 2. Prepare structured system prompt for Gemini
-    const prompt = '''
-You are a certified professional dermatologist and skincare expert AI for Dermaly.
+    final prompt = '''
+You are a certified professional dermatologist and skincare expert AI for Dermaly.${_declaredContext(questionnaire)}
 
 STEP 1 - Check whether the image can be used at all.
 It is usable ONLY if it shows the skin of a real, living human face, photographed
@@ -466,8 +490,9 @@ Return ONLY a valid JSON object matching this exact format:
   /// Chaque produit porte son moment d'application ; ceux du matin ET du soir
   /// reviennent dans les deux listes de la routine.
   static Future<List<RoutineProduct>> recommendRoutine(
-    SkinAnalysisResult analysis,
-  ) async {
+    SkinAnalysisResult analysis, {
+    Map<String, List<String>>? questionnaire,
+  }) async {
     final concerns = [
       for (final entry in analysis.concerns.entries) '- ${entry.key}: ${entry.value}/100',
     ].join('\n');
@@ -482,8 +507,12 @@ Their latest skin analysis:
 - Concerns, 0 = none and 100 = severe:
 $concerns
 
+${_declaredContext(questionnaire)}
+
 Recommend 4 to 6 real, widely available products that treat THESE concerns,
-worst ones first. Cover cleansing, treatment, hydration and daytime sun
+worst ones first. Never recommend a product containing an ingredient the user
+reported reacting to, and take their current products and sun protection habits
+into account instead of repeating what they already use. Cover cleansing, treatment, hydration and daytime sun
 protection. Never recommend two products that conflict (for example retinol and
 a strong exfoliating acid in the same evening).
 
