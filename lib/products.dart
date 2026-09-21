@@ -3,6 +3,7 @@ import 'app_colors.dart';
 import 'models/routine_product.dart';
 import 'routine.dart';
 import 'services/gemini_service.dart';
+import 'services/notification_service.dart';
 import 'services/routine_storage.dart';
 
 /// Produits proposés par Gemini à partir de la dernière analyse de peau.
@@ -55,6 +56,9 @@ class _RecommendedProductsPageState extends State<RecommendedProductsPage> {
         debugPrint('Erreur sauvegarde routine: $e');
         saveFailed = true;
       }
+
+      // Une routine existe désormais : activer les rappels matin et soir
+      if (!saveFailed) await NotificationService.refreshSchedules();
 
       if (!mounted) return;
       setState(() {

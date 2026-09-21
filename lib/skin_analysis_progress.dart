@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'app_colors.dart';
 import 'make_skin_analysis.dart';
 import 'services/gemini_service.dart';
+import 'services/notification_service.dart';
 import 'services/skin_analysis_storage.dart';
 import 'services/skin_progress_storage.dart';
 import 'skin_result.dart';
@@ -109,6 +110,9 @@ class _SkinAnalysisProgressPageState extends State<SkinAnalysisProgressPage>
       debugPrint('Erreur sauvegarde scan du jour: $e');
       saveFailed = true;
     }
+
+    // Le scan du mois est fait : le prochain rappel vise le mois suivant
+    await NotificationService.refreshSchedules();
 
     if (!mounted) return;
 
