@@ -20,6 +20,11 @@ class RoutineProduct {
     this.time = RoutineTime.both,
   });
 
+  /// Identifiant stable du produit, utilise pour retenir qu'il a ete applique
+  /// dans la journee. Le nom seul suffit a le distinguer dans une routine, la
+  /// categorie evite juste de confondre deux produits homonymes.
+  String get id => '${category.toLowerCase()}|${name.toLowerCase()}';
+
   /// Vrai si le produit s'applique le matin (matin seul ou matin et soir)
   bool get isMorning => time != RoutineTime.evening;
 

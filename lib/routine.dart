@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
 import 'models/routine_product.dart';
+import 'products.dart';
+import 'services/routine_log_storage.dart';
 import 'services/routine_storage.dart';
 
 class RoutinePage extends StatefulWidget {
@@ -10,12 +12,23 @@ class RoutinePage extends StatefulWidget {
   State<RoutinePage> createState() => _RoutinePageState();
 }
 
-class _RoutinePageState extends State<RoutinePage> {
+class _RoutinePageState extends State<RoutinePage> with WidgetsBindingObserver {
   bool isMorning = true;
-  int _currentIndex = 2; // Routine is the center item
+  int _currentIndex = 1; // Routine is the center item
 
   bool _isLoading = true;
   List<RoutineProduct> _products = _sampleRoutine;
+
+  /// Produits coches, par jour. La journee en cours y est absente tant que rien
+  /// n'a ete coche : les cases repartent donc vides a chaque nouvelle journee.
+  Map<String, RoutineDayLog> _logs = const {};
+  DateTime _today = _dateOnly(DateTime.now());
+
+  static const List<String> _weekdayLabels = [
+    'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun',
+  ];
+
+  static DateTime _dateOnly(DateTime date) => DateTime(date.year, date.month, date.day);
 
   /// Routine d'exemple affichee tant que l'utilisateur n'a pas lance d'analyse
   static const List<RoutineProduct> _sampleRoutine = [
@@ -42,7 +55,27 @@ class _RoutinePageState extends State<RoutinePage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadRoutine();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// L'app laissee ouverte puis reprise le lendemain doit montrer une journee
+  /// vierge, pas les cases de la veille.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _refreshDay();
+  }
+
+  void _refreshDay() {
+    final today = _dateOnly(DateTime.now());
+    if (today == _today) return;
+    setState(() => _today = today);
   }
 
   Future<void> _loadRoutine() async {
@@ -53,12 +86,84 @@ class _RoutinePageState extends State<RoutinePage> {
       debugPrint('Erreur chargement routine: $e');
     }
 
+    var logs = const <String, RoutineDayLog>{};
+    try {
+      logs = await RoutineLogStorage.loadSince(
+        _today.subtract(const Duration(days: RoutineLogStorage.historyDays)),
+      );
+    } catch (e) {
+      debugPrint('Erreur chargement journal routine: $e');
+    }
+
     if (!mounted) return;
     setState(() {
       // Aucune routine enregistree : on garde l'exemple plutot qu'une page vide
       if (saved != null) _products = saved;
+      _logs = logs;
       _isLoading = false;
     });
+  }
+
+  /// Produits attendus au moment demande de la journee
+  Set<String> _idsFor({required bool morning}) => {
+        for (final product in _products)
+          if (morning ? product.isMorning : product.isEvening) product.id,
+      };
+
+  /// Journee en cours, ramenee a la routine actuelle : un produit retire de la
+  /// routine ne doit plus etre attendu ni compte comme applique.
+  RoutineDayLog get _todayLog =>
+      (_logs[RoutineLogStorage.dayKey(_today)] ?? RoutineDayLog.empty).withRoutine(
+        morningIds: _idsFor(morning: true),
+        eveningIds: _idsFor(morning: false),
+      );
+
+  RoutineDayLog _logFor(DateTime day) {
+    if (day == _today) return _todayLog;
+    return _logs[RoutineLogStorage.dayKey(day)] ?? RoutineDayLog.empty;
+  }
+
+  /// Les sept derniers jours, du plus ancien a aujourd'hui
+  List<DateTime> get _weekDays => [
+        for (var i = 6; i >= 0; i--)
+          DateTime(_today.year, _today.month, _today.day - i),
+      ];
+
+  /// Jours complets enchaines jusqu'a aujourd'hui. La journee en cours ne casse
+  /// pas la serie tant qu'elle n'est pas finie : on repart alors de la veille.
+  int get _dayStreak {
+    var day = _today;
+    if (_logFor(day).status != RoutineDayStatus.complete) {
+      day = DateTime(day.year, day.month, day.day - 1);
+    }
+
+    var streak = 0;
+    while (_logFor(day).status == RoutineDayStatus.complete) {
+      streak++;
+      day = DateTime(day.year, day.month, day.day - 1);
+    }
+    return streak;
+  }
+
+  /// Coche ou decoche un produit pour le moment affiche (matin ou soir)
+  Future<void> _toggleProduct(RoutineProduct product) async {
+    _refreshDay();
+
+    final day = _today;
+    final updated = _todayLog.toggle(product.id, morning: isMorning);
+    setState(() => _logs = {..._logs, RoutineLogStorage.dayKey(day): updated});
+
+    // La case reste cochee meme si l'enregistrement echoue : Firestore garde
+    // l'ecriture en cache, l'utilisateur n'a rien a recocher.
+    try {
+      await RoutineLogStorage.saveDay(day, updated);
+    } catch (e) {
+      debugPrint('Erreur sauvegarde de la journee: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Your progress could not be saved.')),
+      );
+    }
   }
 
   @override
@@ -236,13 +341,13 @@ class _RoutinePageState extends State<RoutinePage> {
                 ),
               ),
               RichText(
-                text: const TextSpan(
+                text: TextSpan(
                   children: [
                     TextSpan(
-                      text: '0 ',
-                      style: TextStyle(color: AppColors.terracotta, fontWeight: FontWeight.bold, fontSize: 16),
+                      text: '$_dayStreak ',
+                      style: const TextStyle(color: AppColors.terracotta, fontWeight: FontWeight.bold, fontSize: 16),
                     ),
-                    TextSpan(
+                    const TextSpan(
                       text: 'day streak',
                       style: TextStyle(color: AppColors.greyText, fontSize: 12),
                     ),
@@ -254,15 +359,7 @@ class _RoutinePageState extends State<RoutinePage> {
           const SizedBox(height: 20),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _buildDayItem('Tue', false, false),
-              _buildDayItem('Wed', false, false),
-              _buildDayItem('Thu', false, false),
-              _buildDayItem('Fri', false, false),
-              _buildDayItem('Sat', false, false),
-              _buildDayItem('Sun', true, true),
-              _buildDayItem('Mon', true, false),
-            ],
+            children: [for (final day in _weekDays) _buildDayItem(day)],
           ),
           const SizedBox(height: 15),
           Row(
@@ -280,24 +377,46 @@ class _RoutinePageState extends State<RoutinePage> {
     );
   }
 
-  Widget _buildDayItem(String day, bool isHighlighted, bool isComplete) {
+  Widget _buildDayItem(DateTime day) {
+    final status = _logFor(day).status;
+    final isToday = day == _today;
+
+    // La journee en cours n'est pas un jour manque tant qu'elle n'est pas finie
+    final color = switch (status) {
+      RoutineDayStatus.complete => AppColors.terracotta,
+      RoutineDayStatus.partial => AppColors.terracotta.withAlpha(100),
+      RoutineDayStatus.missed => isToday ? AppColors.white : AppColors.softPurple,
+    };
+
     return Column(
       children: [
-        Text(day, style: const TextStyle(color: AppColors.greyText, fontSize: 11)),
+        Text(
+          _weekdayLabels[day.weekday - 1],
+          style: TextStyle(
+            color: isToday ? AppColors.darkPurple : AppColors.greyText,
+            fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
+            fontSize: 11,
+          ),
+        ),
         const SizedBox(height: 8),
         Container(
           width: 36,
           height: 36,
           decoration: BoxDecoration(
-            color: isHighlighted 
-              ? (isComplete ? AppColors.terracotta : AppColors.terracotta.withAlpha(100))
-              : AppColors.white,
+            color: color,
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: AppColors.softPurple),
+            border: Border.all(
+              color: isToday ? AppColors.terracotta : AppColors.softPurple,
+              width: isToday ? 1.5 : 1,
+            ),
           ),
-          child: isHighlighted 
-            ? const Center(child: Text('~', style: TextStyle(color: AppColors.white, fontSize: 18)))
-            : null,
+          child: switch (status) {
+            RoutineDayStatus.complete =>
+              const Icon(Icons.check, color: AppColors.white, size: 18),
+            RoutineDayStatus.partial =>
+              const Icon(Icons.remove, color: AppColors.white, size: 18),
+            RoutineDayStatus.missed => null,
+          },
         ),
       ],
     );
@@ -318,6 +437,8 @@ class _RoutinePageState extends State<RoutinePage> {
   }
 
   Widget _buildRoutineCard(RoutineProduct product) {
+    final isDone = _todayLog.isDone(product.id, morning: isMorning);
+
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -376,14 +497,29 @@ class _RoutinePageState extends State<RoutinePage> {
             ),
           ),
           const SizedBox(width: 12),
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: AppColors.terracotta.withAlpha(180),
-              borderRadius: BorderRadius.circular(8),
+          // Coche du jour : vide par defaut, elle marque le produit applique
+          Semantics(
+            button: true,
+            checked: isDone,
+            label: 'Mark ${product.name} as applied',
+            child: GestureDetector(
+              onTap: () => _toggleProduct(product),
+              child: Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: isDone ? AppColors.terracotta.withAlpha(180) : AppColors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: AppColors.terracotta.withAlpha(isDone ? 180 : 80),
+                    width: 1.5,
+                  ),
+                ),
+                child: isDone
+                    ? const Icon(Icons.check, color: AppColors.white, size: 18)
+                    : null,
+              ),
             ),
-            child: const Icon(Icons.check, color: AppColors.white, size: 18),
           ),
         ],
       ),
@@ -415,6 +551,14 @@ class _RoutinePageState extends State<RoutinePage> {
     bool isSelected = _currentIndex == index;
     return GestureDetector(
       onTap: () {
+        // Care ouvre les produits proposes pour la routine en cours
+        if (index == 0) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const RecommendedProductsPage.saved()),
+          );
+          return;
+        }
         if (index != 1) {
           setState(() => _currentIndex = index);
         }

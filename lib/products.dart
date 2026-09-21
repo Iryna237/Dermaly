@@ -12,10 +12,18 @@ import 'services/routine_storage.dart';
 /// Les produits retenus deviennent la routine de l'utilisateur : ils sont
 /// enregistrés dès leur réception, et la page Routine les affiche répartis
 /// entre matin et soir.
+///
+/// Avec [RecommendedProductsPage.saved], la page relit la routine enregistrée
+/// au lieu d'en demander une nouvelle : c'est la consultation des produits déjà
+/// proposés, sans rappeler Gemini ni remplacer la routine en cours.
 class RecommendedProductsPage extends StatefulWidget {
-  final SkinAnalysisResult analysis;
+  /// Analyse à partir de laquelle recommander, ou null pour relire la routine
+  /// déjà enregistrée.
+  final SkinAnalysisResult? analysis;
 
   const RecommendedProductsPage({super.key, required this.analysis});
+
+  const RecommendedProductsPage.saved({super.key}) : analysis = null;
 
   @override
   State<RecommendedProductsPage> createState() => _RecommendedProductsPageState();
@@ -45,6 +53,12 @@ class _RecommendedProductsPageState extends State<RecommendedProductsPage> {
       _saveFailed = false;
     });
 
+    final analysis = widget.analysis;
+    if (analysis == null) {
+      await _loadSavedRoutine();
+      return;
+    }
+
     try {
       // Allergies et produits déjà utilisés : sans eux, une recommandation peut
       // proposer un actif que l'utilisateur a déclaré ne pas supporter
@@ -56,7 +70,7 @@ class _RecommendedProductsPageState extends State<RecommendedProductsPage> {
       }
 
       final products = await GeminiService.recommendRoutine(
-        widget.analysis,
+        analysis,
         questionnaire: questionnaire,
       );
 
@@ -87,6 +101,28 @@ class _RecommendedProductsPageState extends State<RecommendedProductsPage> {
         _errorMessage = e.toString().replaceAll('Exception: ', '');
       });
     }
+  }
+
+  /// Relit la routine enregistrée, sans rien demander ni rien réécrire
+  Future<void> _loadSavedRoutine() async {
+    List<RoutineProduct>? saved;
+    String? error;
+    try {
+      saved = await RoutineStorage.load();
+    } catch (e) {
+      debugPrint('Erreur chargement routine: $e');
+      error = 'Your products could not be loaded. Check your connection.';
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _products = saved ?? const [];
+      _errorMessage = error ??
+          (saved == null
+              ? 'No products yet. Run a skin analysis to get your routine.'
+              : null);
+      _isLoading = false;
+    });
   }
 
   List<RoutineProduct> get _filteredProducts => switch (_filter) {
@@ -139,8 +175,8 @@ class _RecommendedProductsPageState extends State<RecommendedProductsPage> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  _isLoading
-                      ? 'Building a routine for your ${widget.analysis.skinType.toLowerCase()}...'
+                  _isLoading && widget.analysis != null
+                      ? 'Building a routine for your ${widget.analysis!.skinType.toLowerCase()}...'
                       : 'Products selected for your skin type and concerns.',
                   style: const TextStyle(
                     fontSize: 14,
@@ -313,6 +349,9 @@ class _RecommendedProductsPageState extends State<RecommendedProductsPage> {
   Widget _buildRoutineFooter() {
     final morning = _products.where((p) => p.isMorning).length;
     final night = _products.where((p) => p.isEvening).length;
+    // En consultation, la routine est déjà la leur : rien n'a été ajouté à
+    // l'instant, et le bouton renverrait vers la page d'où ils viennent.
+    final isSaved = widget.analysis == null;
 
     return Container(
       width: double.infinity,
@@ -335,11 +374,13 @@ class _RecommendedProductsPageState extends State<RecommendedProductsPage> {
             child: Text(
               _saveFailed
                   ? 'These products could not be saved to your routine. Check your connection and try again.'
-                  : 'Added to your routine: $morning in the morning, $night at night.',
+                  : isSaved
+                      ? 'Your routine: $morning in the morning, $night at night.'
+                      : 'Added to your routine: $morning in the morning, $night at night.',
               style: const TextStyle(fontSize: 12, color: AppColors.darkPurple),
             ),
           ),
-          if (!_saveFailed)
+          if (!_saveFailed && !isSaved)
             TextButton(
               onPressed: () => Navigator.push(
                 context,
