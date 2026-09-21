@@ -7,6 +7,11 @@ import 'user_avatar.dart';
 
 /// Patients du dermatologue connecté : uniquement ceux dont la demande de
 /// consultation a été acceptée, comme dans sa messagerie.
+/// Patients du dermatologue connecté : ceux dont la demande de consultation a
+/// été acceptée.
+///
+/// La liste est bâtie à partir des consultations, pas d'une requête sur le rôle :
+/// certains comptes n'ont pas de champ `role` et disparaissaient de l'onglet.
 class PatientsPage extends StatefulWidget {
   const PatientsPage({super.key});
 
@@ -15,15 +20,9 @@ class PatientsPage extends StatefulWidget {
 }
 
 class _PatientsPageState extends State<PatientsPage> {
-  // Flux créés une seule fois : les recréer à chaque build relance les lectures
+  // Flux créé une seule fois : le recréer à chaque build relance la lecture Firestore
   late final Stream<List<Consultation>> _consultations =
       ConsultationService.watchForDermatologist();
-
-  late final Stream<QuerySnapshot<Map<String, dynamic>>> _clients =
-      FirebaseFirestore.instance
-          .collection('users')
-          .where('role', isEqualTo: 'client')
-          .snapshots();
 
   @override
   Widget build(BuildContext context) {
@@ -46,28 +45,26 @@ class _PatientsPageState extends State<PatientsPage> {
       ),
       body: StreamBuilder<List<Consultation>>(
         stream: _consultations,
-        builder: (context, consultationSnapshot) {
-          if (consultationSnapshot.hasError) {
-            return _buildMessage('Unable to load your patients.\n'
-                '${consultationSnapshot.error}');
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return _buildMessage('Unable to load your patients.\n${snapshot.error}');
           }
-          if (!consultationSnapshot.hasData) {
+          if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          // Seules les consultations acceptées donnent accès au dossier
-          final acceptedIds = {
-            for (final consultation in consultationSnapshot.data!)
-              if (consultation.isAccepted) consultation.patientId,
-          };
-
-          if (acceptedIds.isEmpty) {
+          final patients = snapshot.data!.where((c) => c.isAccepted).toList();
+          if (patients.isEmpty) {
             return _buildMessage(
               'No patient yet.\nAccept a consultation request to see a patient here.',
             );
           }
 
-          return _buildPatientList(acceptedIds);
+          return ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+            itemCount: patients.length,
+            itemBuilder: (context, index) => _buildPatientTile(patients[index]),
+          );
         },
       ),
     );
@@ -86,74 +83,61 @@ class _PatientsPageState extends State<PatientsPage> {
     );
   }
 
-  Widget _buildPatientList(Set<String> acceptedIds) {
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: _clients,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+  /// Une seule lecture du profil par patient, pour la photo comme pour l'email.
+  /// Le nom de la consultation sert de repli tant que le profil n'est pas chargé.
+  Widget _buildPatientTile(Consultation consultation) {
+    return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      future: FirebaseFirestore.instance
+          .collection('users')
+          .doc(consultation.patientId)
+          .get(),
+      builder: (context, snapshot) {
+        final data = snapshot.data?.data();
+        final name = (data?['fullName'] as Object?)?.toString() ?? consultation.patientName;
+        final email = (data?['email'] as Object?)?.toString() ?? '';
+        final photo = userAvatarImage(data);
 
-          // Filtrage côté application : les identifiants acceptés dépassent vite
-          // la limite de 30 valeurs d'un whereIn Firestore
-          final patients = (snapshot.data?.docs ?? []).where((doc) {
-            final uid = (doc.data()['uid'] as Object?)?.toString() ?? doc.id;
-            return acceptedIds.contains(uid);
-          }).toList();
-
-          if (patients.isEmpty) {
-            return _buildMessage('No patients found');
-          }
-
-          return ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-            itemCount: patients.length,
-            itemBuilder: (context, index) {
-              final data = patients[index].data();
-              final name = data['fullName'] ?? 'Anonymous Patient';
-              final email = data['email'] ?? '';
-              final photo = userAvatarImage(data);
-              final uid = data['uid'];
-
-              return Container(
-                margin: const EdgeInsets.only(bottom: 15),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.white,
-                  borderRadius: BorderRadius.circular(15),
-                  border: Border.all(color: AppColors.softGrey),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.black.withAlpha(5),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: CircleAvatar(
-                    radius: 25,
-                    backgroundColor: AppColors.lightPurple,
-                    backgroundImage: photo,
-                    child: photo == null ? const Icon(Icons.person, color: AppColors.primaryPurple) : null,
+        return Container(
+          margin: const EdgeInsets.only(bottom: 15),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppColors.white,
+            borderRadius: BorderRadius.circular(15),
+            border: Border.all(color: AppColors.softGrey),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.black.withAlpha(5),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: CircleAvatar(
+              radius: 25,
+              backgroundColor: AppColors.lightPurple,
+              backgroundImage: photo,
+              child: photo == null ? const Icon(Icons.person, color: AppColors.primaryPurple) : null,
+            ),
+            title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkPurple)),
+            subtitle: Text(email, style: const TextStyle(fontSize: 12, color: AppColors.greyText)),
+            trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.softGrey),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => PatientDetailsPage(
+                    patientId: consultation.patientId,
+                    patientName: name,
                   ),
-                  title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkPurple)),
-                  subtitle: Text(email, style: const TextStyle(fontSize: 12, color: AppColors.greyText)),
-                  trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.softGrey),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => PatientDetailsPage(patientId: uid, patientName: name),
-                      ),
-                    );
-                  },
                 ),
               );
             },
-          );
-        });
+          ),
+        );
+      },
+    );
   }
 }
 

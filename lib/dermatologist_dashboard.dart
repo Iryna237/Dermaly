@@ -10,7 +10,9 @@ import 'appointments.dart';
 import 'chat_derma.dart';
 import 'derma_profil.dart';
 import 'pages/profile_page.dart';
+import 'models/consultation.dart';
 import 'patients.dart';
+import 'services/consultation_service.dart';
 import 'services/message_notifier.dart';
 import 'services/notification_service.dart';
 
@@ -195,14 +197,13 @@ class _DermatologistDashboardState extends State<DermatologistDashboard> {
                 spacing: 15,
                 runSpacing: 15,
                 children: [
-                  StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance
-                        .collection('users')
-                        .where('role', isEqualTo: 'client')
-                        .snapshots(),
+                  StreamBuilder<List<Consultation>>(
+                    // Les patients de ce dermatologue, pas tous les clients de l'app
+                    stream: ConsultationService.watchForDermatologist(),
                     builder: (context, snapshot) {
-                      final count =
-                      snapshot.hasData ? snapshot.data!.docs.length : 0;
+                      final count = (snapshot.data ?? const <Consultation>[])
+                          .where((c) => c.isAccepted)
+                          .length;
                       return GestureDetector(
                         onTap: () => setState(() => _currentIndex = 1),
                         child: _buildSummaryCard(
