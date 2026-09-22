@@ -10,6 +10,7 @@ import 'services/chat_service.dart';
 import 'services/consultation_service.dart';
 import 'services/message_notifier.dart';
 import 'services/gemini_service.dart';
+import 'unread_badge.dart';
 import 'user_avatar.dart';
 
 class DermatologistChatListPage extends StatefulWidget {
@@ -20,9 +21,11 @@ class DermatologistChatListPage extends StatefulWidget {
 }
 
 class _DermatologistChatListPageState extends State<DermatologistChatListPage> {
-  // Flux créé une seule fois : le recréer à chaque build relance la lecture Firestore
+  // Flux créés une seule fois : les recréer à chaque build relance la lecture Firestore
   late final Stream<List<Consultation>> _consultations =
       ConsultationService.watchForDermatologist();
+  late final Stream<List<ChatSummary>> _chats =
+      ChatActivity.watch(asDermatologist: true);
 
   @override
   Widget build(BuildContext context) {
@@ -43,61 +46,76 @@ class _DermatologistChatListPageState extends State<DermatologistChatListPage> {
               .where((c) => c.isAccepted)
               .toList();
 
-          return Column(
-            children: [
-              _buildAiAssistantTile(),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-                child: Divider(),
-              ),
-              Expanded(
-                child: snapshot.hasError
-                    ? Padding(
-                        padding: const EdgeInsets.all(40),
-                        child: Text(
-                          'Unable to load consultation requests. ${snapshot.error}',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(fontSize: 12, color: AppColors.greyText, height: 1.4),
-                        ),
-                      )
-                    : snapshot.connectionState == ConnectionState.waiting
-                    ? const Center(child: CircularProgressIndicator(color: AppColors.primaryPurple))
-                    : ListView(
-                        children: [
-                          _buildSectionTitle('Patients'),
-                          if (accepted.isEmpty)
-                            const Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 24, vertical: 30),
-                              child: Text(
-                                'No patient yet. Accept a consultation request from the Requests tab '
-                                'to start a conversation.',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(color: AppColors.greyText, fontSize: 13, height: 1.4),
-                              ),
-                            )
-                          else
-                            for (final consultation in accepted)
-                              _buildChatTile(
-                                name: consultation.patientName,
-                                subtitle: 'Click to open the consultation',
-                                userId: consultation.patientId,
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => DermaDetailedChatPage(
-                                        patientId: consultation.patientId,
-                                        patientName: consultation.patientName,
-                                        isAi: false,
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                        ],
-                      ),
-              ),
-            ],
+          return StreamBuilder<List<ChatSummary>>(
+            stream: _chats,
+            builder: (context, chats) {
+              // Non-lus par patient : la liste garde son ordre, seules les
+              // conversations qui attendent une lecture se signalent.
+              final unread = {
+                for (final chat in chats.data ?? const <ChatSummary>[])
+                  chat.peerId: chat.unread,
+              };
+
+              return Column(
+                children: [
+                  _buildAiAssistantTile(),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                    child: Divider(),
+                  ),
+                  Expanded(
+                    child: snapshot.hasError
+                        ? Padding(
+                            padding: const EdgeInsets.all(40),
+                            child: Text(
+                              'Unable to load consultation requests. ${snapshot.error}',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(fontSize: 12, color: AppColors.greyText, height: 1.4),
+                            ),
+                          )
+                        : snapshot.connectionState == ConnectionState.waiting
+                        ? const Center(child: CircularProgressIndicator(color: AppColors.primaryPurple))
+                        : ListView(
+                            children: [
+                              _buildSectionTitle('Patients'),
+                              if (accepted.isEmpty)
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(horizontal: 24, vertical: 30),
+                                  child: Text(
+                                    'No patient yet. Accept a consultation request from the Requests tab '
+                                    'to start a conversation.',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(color: AppColors.greyText, fontSize: 13, height: 1.4),
+                                  ),
+                                )
+                              else
+                                for (final consultation in accepted)
+                                  _buildChatTile(
+                                    name: consultation.patientName,
+                                    subtitle: (unread[consultation.patientId] ?? 0) > 0
+                                        ? 'New message waiting'
+                                        : 'Click to open the consultation',
+                                    userId: consultation.patientId,
+                                    unread: unread[consultation.patientId] ?? 0,
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => DermaDetailedChatPage(
+                                            patientId: consultation.patientId,
+                                            patientName: consultation.patientName,
+                                            isAi: false,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                            ],
+                          ),
+                  ),
+                ],
+              );
+            },
           );
         },
       ),
@@ -142,15 +160,26 @@ class _DermatologistChatListPageState extends State<DermatologistChatListPage> {
     required String subtitle,
     String? userId,
     bool isAi = false,
+    int unread = 0,
     required VoidCallback onTap,
   }) {
+    // Une conversation non lue se repère avant d'être lue : fond teinté, nom
+    // appuyé et nombre de messages en attente.
+    final hasUnread = unread > 0;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 15),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isAi ? AppColors.softPurple : AppColors.white,
+        color: isAi
+            ? AppColors.softPurple
+            : hasUnread
+                ? AppColors.terracotta.withAlpha(15)
+                : AppColors.white,
         borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: AppColors.softGrey),
+        border: Border.all(
+          color: hasUnread ? AppColors.terracotta.withAlpha(90) : AppColors.softGrey,
+        ),
       ),
       child: ListTile(
         contentPadding: EdgeInsets.zero,
@@ -162,8 +191,17 @@ class _DermatologistChatListPageState extends State<DermatologistChatListPage> {
               )
             : UserAvatar(userId: userId, backgroundColor: AppColors.lightPurple),
         title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkPurple)),
-        subtitle: Text(subtitle, style: const TextStyle(fontSize: 12, color: AppColors.greyText)),
-        trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.softGrey),
+        subtitle: Text(
+          subtitle,
+          style: TextStyle(
+            fontSize: 12,
+            color: hasUnread ? AppColors.terracotta : AppColors.greyText,
+            fontWeight: hasUnread ? FontWeight.w600 : FontWeight.normal,
+          ),
+        ),
+        trailing: hasUnread
+            ? UnreadCount(count: unread)
+            : const Icon(Icons.chevron_right_rounded, color: AppColors.softGrey),
         onTap: onTap,
       ),
     );

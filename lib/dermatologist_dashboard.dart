@@ -21,6 +21,7 @@ import 'services/chat_activity.dart';
 import 'services/consultation_service.dart';
 import 'services/message_notifier.dart';
 import 'services/notification_service.dart';
+import 'unread_badge.dart';
 import 'user_avatar.dart';
 
 class DermatologistDashboard extends StatefulWidget {
@@ -77,28 +78,43 @@ class _DermatologistDashboardState extends State<DermatologistDashboard> {
           color: AppColors.white,
           border: Border(top: BorderSide(color: AppColors.softGrey, width: 1)),
         ),
-        child: BottomNavigationBar(
-          currentIndex: _currentIndex,
-          onTap: (index) => setState(() => _currentIndex = index),
-          type: BottomNavigationBarType.fixed,
-          backgroundColor: AppColors.white,
-          selectedItemColor: AppColors.primaryPurple,
-          unselectedItemColor: AppColors.greyText,
-          selectedLabelStyle:
-          const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-          unselectedLabelStyle: const TextStyle(fontSize: 12),
-          items: const [
-            BottomNavigationBarItem(
-                icon: Icon(Icons.grid_view_rounded), label: 'Home'),
-            BottomNavigationBarItem(
-                icon: Icon(Icons.people_alt_outlined), label: 'Patients'),
-            BottomNavigationBarItem(
-                icon: Icon(Icons.inbox_rounded), label: 'Requests'),
-            BottomNavigationBarItem(
-                icon: Icon(Icons.chat_bubble_outline_rounded), label: 'Chat'),
-            BottomNavigationBarItem(
-                icon: Icon(Icons.person_outline_rounded), label: 'Profile'),
-          ],
+        // Le point de l'onglet Chat est tenu par le même flux que la carte des
+        // messages non lus : les deux disent la même chose au même moment.
+        child: StreamBuilder<List<ChatSummary>>(
+          stream: _chats,
+          builder: (context, snapshot) {
+            final unread = (snapshot.data ?? const <ChatSummary>[])
+                .fold(0, (total, chat) => total + chat.unread);
+
+            return BottomNavigationBar(
+              currentIndex: _currentIndex,
+              onTap: (index) => setState(() => _currentIndex = index),
+              type: BottomNavigationBarType.fixed,
+              backgroundColor: AppColors.white,
+              selectedItemColor: AppColors.primaryPurple,
+              unselectedItemColor: AppColors.greyText,
+              selectedLabelStyle:
+              const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+              unselectedLabelStyle: const TextStyle(fontSize: 12),
+              items: [
+                const BottomNavigationBarItem(
+                    icon: Icon(Icons.grid_view_rounded), label: 'Home'),
+                const BottomNavigationBarItem(
+                    icon: Icon(Icons.people_alt_outlined), label: 'Patients'),
+                const BottomNavigationBarItem(
+                    icon: Icon(Icons.inbox_rounded), label: 'Requests'),
+                BottomNavigationBarItem(
+                  icon: unreadDot(
+                    const Icon(Icons.chat_bubble_outline_rounded),
+                    show: unread > 0,
+                  ),
+                  label: 'Chat',
+                ),
+                const BottomNavigationBarItem(
+                    icon: Icon(Icons.person_outline_rounded), label: 'Profile'),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -155,26 +171,10 @@ class _DermatologistDashboardState extends State<DermatologistDashboard> {
 
         return IconButton(
           tooltip: 'Notifications',
-          icon: Stack(
-            alignment: Alignment.center,
-            clipBehavior: Clip.none,
-            children: [
-              const Icon(Icons.notifications_none_rounded,
-                  size: 28, color: AppColors.terracotta),
-              if (unread > 0)
-                Positioned(
-                  right: 2,
-                  top: 2,
-                  child: Container(
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(
-                      color: Colors.red,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-            ],
+          icon: unreadDot(
+            const Icon(Icons.notifications_none_rounded,
+                size: 28, color: AppColors.terracotta),
+            show: unread > 0,
           ),
           onPressed: () => Navigator.push(
             context,
@@ -476,22 +476,7 @@ class _DermatologistDashboardState extends State<DermatologistDashboard> {
                 style: const TextStyle(fontSize: 11, color: AppColors.greyText),
               ),
               const SizedBox(height: 6),
-              if (chat.unread > 0)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: AppColors.terracotta,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    chat.unread.toString(),
-                    style: const TextStyle(
-                      color: AppColors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
+              if (chat.unread > 0) UnreadCount(count: chat.unread),
             ],
           ),
         ],
