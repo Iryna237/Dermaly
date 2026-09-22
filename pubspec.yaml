@@ -49,6 +49,11 @@ dependencies:
   flutter_local_notifications: ^22.3.1
   timezone: ^0.11.1
 
+# permission_handler_android 14.x exige compileSdk 37 / AGP 9 ; on reste sur la
+# version 13 compatible avec le toolchain Gradle 8.14 / AGP 8.11.1 du projet.
+dependency_overrides:
+  permission_handler_android: 13.0.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -78,7 +83,6 @@ flutter:
     - .env
     - assets/images/
     - assets/platform/
-    - .env
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
