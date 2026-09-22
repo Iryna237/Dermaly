@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'app_colors.dart';
-import 'pages/auth/login.dart';
+import 'logout.dart';
 import 'services/auth_service.dart';
 
 class DermatologistProfilePage extends StatefulWidget {
@@ -126,16 +126,6 @@ class _DermatologistProfilePageState
     }
   }
 
-  Future<void> _signOut() async {
-    await _authService.signOut();
-    if (!mounted) return;
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (context) => const LoginPage()),
-          (route) => false,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -152,7 +142,8 @@ class _DermatologistProfilePageState
         actions: [
           IconButton(
             icon: const Icon(Icons.logout, color: AppColors.terracotta),
-            onPressed: _signOut,
+            tooltip: 'Logout',
+            onPressed: () => confirmSignOut(context),
           ),
         ],
       ),

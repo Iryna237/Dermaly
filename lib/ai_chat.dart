@@ -7,9 +7,11 @@ import 'models/chat_message.dart';
 import 'services/chat_service.dart';
 import 'models/consultation.dart';
 import 'request_consultation.dart';
+import 'services/chat_activity.dart';
 import 'services/consultation_service.dart';
 import 'services/gemini_service.dart';
 import 'services/message_notifier.dart';
+import 'unread_badge.dart';
 import 'user_avatar.dart';
 
 class ClientChatListPage extends StatefulWidget {
@@ -20,9 +22,11 @@ class ClientChatListPage extends StatefulWidget {
 }
 
 class _ClientChatListPageState extends State<ClientChatListPage> {
-  // Flux créé une seule fois : le recréer à chaque build relance la lecture Firestore
+  // Flux créés une seule fois : les recréer à chaque build relance la lecture Firestore
   late final Stream<List<Consultation>> _consultations =
       ConsultationService.watchForPatient();
+  late final Stream<List<ChatSummary>> _chats =
+      ChatActivity.watch(asDermatologist: false);
 
   void _openRequestPage() {
     Navigator.push(
@@ -50,68 +54,83 @@ class _ClientChatListPageState extends State<ClientChatListPage> {
           final accepted = consultations.where((c) => c.isAccepted).toList();
           final pending = consultations.where((c) => c.isPending).toList();
 
-          return Column(
-            children: [
-              // L'assistant IA reste accessible sans aucune demande
-              _buildChatTile(
-                name: 'Dermaly AI Assistant',
-                subtitle: 'AI specialized in dermatology',
-                isAi: true,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const DetailedChatPage(isAi: true)),
-                  );
-                },
-              ),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-                child: Divider(),
-              ),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Professional Consultations',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.darkPurple),
+          return StreamBuilder<List<ChatSummary>>(
+            stream: _chats,
+            builder: (context, chats) {
+              // Non-lus par dermatologue : la liste garde son ordre, seules les
+              // conversations qui attendent une lecture se signalent.
+              final unread = {
+                for (final chat in chats.data ?? const <ChatSummary>[])
+                  chat.peerId: chat.unread,
+              };
+
+              return Column(
+                children: [
+                  // L'assistant IA reste accessible sans aucune demande
+                  _buildChatTile(
+                    name: 'Dermaly AI Assistant',
+                    subtitle: 'AI specialized in dermatology',
+                    isAi: true,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const DetailedChatPage(isAi: true)),
+                      );
+                    },
                   ),
-                ),
-              ),
-              Expanded(
-                child: snapshot.hasError
-                    ? _buildError(snapshot.error.toString())
-                    : snapshot.connectionState == ConnectionState.waiting
-                    ? const Center(child: CircularProgressIndicator(color: AppColors.primaryPurple))
-                    : (accepted.isEmpty && pending.isEmpty)
-                        ? _buildEmptyState()
-                        : ListView(
-                            children: [
-                              // Le chat n'apparait qu'une fois la demande acceptée
-                              for (final consultation in accepted)
-                                _buildChatTile(
-                                  name: consultation.dermatologistName,
-                                  subtitle: 'Consultation accepted · tap to chat',
-                                  userId: consultation.dermatologistId,
-                                  onTap: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => DetailedChatPage(
-                                          isAi: false,
-                                          peerId: consultation.dermatologistId,
-                                          peerName: consultation.dermatologistName,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                              for (final consultation in pending)
-                                _buildPendingTile(consultation),
-                            ],
-                          ),
-              ),
-            ],
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                    child: Divider(),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Professional Consultations',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.darkPurple),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: snapshot.hasError
+                        ? _buildError(snapshot.error.toString())
+                        : snapshot.connectionState == ConnectionState.waiting
+                        ? const Center(child: CircularProgressIndicator(color: AppColors.primaryPurple))
+                        : (accepted.isEmpty && pending.isEmpty)
+                            ? _buildEmptyState()
+                            : ListView(
+                                children: [
+                                  // Le chat n'apparait qu'une fois la demande acceptée
+                                  for (final consultation in accepted)
+                                    _buildChatTile(
+                                      name: consultation.dermatologistName,
+                                      subtitle: (unread[consultation.dermatologistId] ?? 0) > 0
+                                          ? 'New message waiting'
+                                          : 'Consultation accepted · tap to chat',
+                                      userId: consultation.dermatologistId,
+                                      unread: unread[consultation.dermatologistId] ?? 0,
+                                      onTap: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) => DetailedChatPage(
+                                              isAi: false,
+                                              peerId: consultation.dermatologistId,
+                                              peerName: consultation.dermatologistName,
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  for (final consultation in pending)
+                                    _buildPendingTile(consultation),
+                                ],
+                              ),
+                  ),
+                ],
+              );
+            },
           );
         },
       ),
@@ -233,15 +252,26 @@ class _ClientChatListPageState extends State<ClientChatListPage> {
     required String subtitle,
     String? userId,
     bool isAi = false,
+    int unread = 0,
     required VoidCallback onTap,
   }) {
+    // Une conversation non lue se repère avant d'être ouverte, comme côté
+    // dermatologue : fond teinté et nombre de messages en attente.
+    final hasUnread = unread > 0;
+
     return Container(
       margin: const EdgeInsets.only(left: 24, right: 24, bottom: 15),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isAi ? AppColors.softPurple : AppColors.white,
+        color: isAi
+            ? AppColors.softPurple
+            : hasUnread
+                ? AppColors.terracotta.withAlpha(15)
+                : AppColors.white,
         borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: AppColors.softGrey),
+        border: Border.all(
+          color: hasUnread ? AppColors.terracotta.withAlpha(90) : AppColors.softGrey,
+        ),
       ),
       child: ListTile(
         contentPadding: EdgeInsets.zero,
@@ -253,8 +283,17 @@ class _ClientChatListPageState extends State<ClientChatListPage> {
               )
             : UserAvatar(userId: userId, backgroundColor: AppColors.lightPurple),
         title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkPurple)),
-        subtitle: Text(subtitle, style: const TextStyle(fontSize: 12, color: AppColors.greyText)),
-        trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.softGrey),
+        subtitle: Text(
+          subtitle,
+          style: TextStyle(
+            fontSize: 12,
+            color: hasUnread ? AppColors.terracotta : AppColors.greyText,
+            fontWeight: hasUnread ? FontWeight.w600 : FontWeight.normal,
+          ),
+        ),
+        trailing: hasUnread
+            ? UnreadCount(count: unread)
+            : const Icon(Icons.chevron_right_rounded, color: AppColors.softGrey),
         onTap: onTap,
       ),
     );
@@ -287,18 +326,27 @@ class _DetailedChatPageState extends State<DetailedChatPage> {
   late final Stream<List<ChatMessage>> _messages =
       widget.isAi ? _chatService.getMessages() : _getPeerMessages();
 
+  /// Conversation avec ce dermatologue, vide face à l'IA qui n'en a pas
+  late final String _chatId = widget.isAi || widget.peerId == null
+      ? ''
+      : ChatActivity.chatIdFor(_myId, widget.peerId!);
+
   @override
   void initState() {
     super.initState();
     // Lire une conversation vaut notification : pas de bannière pendant ce temps
-    if (!widget.isAi && widget.peerId != null) {
-      MessageNotifier.openChatId = MessageNotifier.chatIdFor(_myId, widget.peerId!);
+    if (_chatId.isNotEmpty) {
+      MessageNotifier.openChatId = _chatId;
+      ChatActivity.markRead(_chatId);
     }
   }
 
   @override
   void dispose() {
     MessageNotifier.openChatId = null;
+    // Les messages arrivés pendant la lecture sont lus, eux aussi : sans cette
+    // seconde marque, ils resteraient comptés comme non lus à la sortie.
+    if (_chatId.isNotEmpty) ChatActivity.markRead(_chatId);
     _messageController.dispose();
     super.dispose();
   }
@@ -358,13 +406,9 @@ class _DetailedChatPageState extends State<DetailedChatPage> {
   }
 
   Stream<List<ChatMessage>> _getPeerMessages() {
-    final String peerId = widget.peerId!;
-    final String chatId =
-        _myId.compareTo(peerId) < 0 ? '${_myId}_$peerId' : '${peerId}_$_myId';
-
     return FirebaseFirestore.instance
         .collection('chats')
-        .doc(chatId)
+        .doc(_chatId)
         .collection('messages')
         .orderBy('timestamp', descending: true)
         .snapshots()
@@ -455,12 +499,10 @@ class _DetailedChatPageState extends State<DetailedChatPage> {
       }
     } else {
       final String peerId = widget.peerId!;
-      final String chatId =
-          _myId.compareTo(peerId) < 0 ? '${_myId}_$peerId' : '${peerId}_$_myId';
 
       await FirebaseFirestore.instance
           .collection('chats')
-          .doc(chatId)
+          .doc(_chatId)
           .collection('messages')
           .add({
             'text': text,
@@ -470,7 +512,7 @@ class _DetailedChatPageState extends State<DetailedChatPage> {
           });
           
       // Update last message in chat room metadata (optional)
-      await FirebaseFirestore.instance.collection('chats').doc(chatId).set({
+      await FirebaseFirestore.instance.collection('chats').doc(_chatId).set({
         'lastMessage': text,
         'timestamp': FieldValue.serverTimestamp(),
         'participants': [_myId, peerId],
