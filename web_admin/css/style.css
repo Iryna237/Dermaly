@@ -1,0 +1,118 @@
+/* Palette reprise de lib/app_colors.dart */
+:root {
+  --primary-purple: #9371E1;
+  --light-purple: #E7E3FC;
+  --soft-purple: #F3F1FD;
+  --dark-purple: #2E1A47;
+  --terracotta: #B16B4B;
+  --grey-text: #6B6B6B;
+  --page-bg: #F8F9FA;
+
+  /* Surcharges Bootstrap */
+  --bs-primary: var(--primary-purple);
+  --bs-body-bg: var(--page-bg);
+  --bs-body-color: var(--dark-purple);
+  --bs-border-radius: .9rem;
+  --bs-border-radius-lg: 1.25rem;
+}
+
+body {
+  background: var(--page-bg);
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* La garde masque la page tant que le rôle admin n'est pas confirmé,
+   pour éviter le flash de contenu avant redirection. */
+body.gated .app-shell { visibility: hidden; }
+body.gated .app-loader { display: flex; }
+.app-loader {
+  display: none;
+  position: fixed;
+  inset: 0;
+  align-items: center;
+  justify-content: center;
+  background: var(--page-bg);
+  z-index: 1080;
+}
+
+/* --- Boutons / accents ------------------------------------------------- */
+.btn-primary {
+  --bs-btn-bg: var(--primary-purple);
+  --bs-btn-border-color: var(--primary-purple);
+  --bs-btn-hover-bg: #7d5bd0;
+  --bs-btn-hover-border-color: #7d5bd0;
+  --bs-btn-active-bg: #6f4dc4;
+  --bs-btn-active-border-color: #6f4dc4;
+  --bs-btn-disabled-bg: var(--primary-purple);
+  --bs-btn-disabled-border-color: var(--primary-purple);
+}
+.form-control:focus, .form-select:focus {
+  border-color: var(--primary-purple);
+  box-shadow: 0 0 0 .2rem rgba(147, 113, 225, .2);
+}
+.text-brand { color: var(--primary-purple) !important; }
+
+/* --- Barre latérale ---------------------------------------------------- */
+.sidebar {
+  width: 250px;
+  min-height: 100vh;
+  background: #fff;
+  border-right: 1px solid rgba(0, 0, 0, .06);
+}
+.sidebar .nav-link {
+  color: var(--grey-text);
+  border-radius: .75rem;
+  padding: .65rem .9rem;
+  margin-bottom: .25rem;
+  font-weight: 500;
+}
+.sidebar .nav-link:hover { background: var(--soft-purple); color: var(--dark-purple); }
+.sidebar .nav-link.active {
+  background: var(--light-purple);
+  color: var(--dark-purple);
+  font-weight: 600;
+}
+.sidebar .nav-link i { width: 1.25rem; }
+
+.main-area { flex: 1; min-width: 0; }
+
+/* --- Cartes ------------------------------------------------------------ */
+.card {
+  border: none;
+  border-radius: var(--bs-border-radius-lg);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, .04);
+}
+
+.stat-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 1.25rem;
+}
+.stat-value { font-size: 1.6rem; font-weight: 700; line-height: 1.1; }
+.stat-label { color: var(--grey-text); font-size: .875rem; }
+
+/* --- Tableau ----------------------------------------------------------- */
+.table > :not(caption) > * > * { padding: .85rem 1rem; }
+.table thead th {
+  color: var(--grey-text);
+  font-size: .75rem;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  font-weight: 600;
+  border-bottom-width: 1px;
+}
+.avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--light-purple);
+  color: var(--dark-purple);
+  display: grid;
+  place-items: center;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.badge-soft { font-weight: 600; font-size: .7rem; padding: .35em .7em; }
