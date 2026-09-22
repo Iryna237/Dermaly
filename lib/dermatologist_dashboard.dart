@@ -5,6 +5,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import 'package:intl/intl.dart';
+
 import 'app_colors.dart';
 import 'appointments.dart';
 import 'chat_derma.dart';
@@ -15,9 +17,11 @@ import 'models/consultation.dart';
 import 'notifications_page.dart';
 import 'services/notification_log.dart';
 import 'patients.dart';
+import 'services/chat_activity.dart';
 import 'services/consultation_service.dart';
 import 'services/message_notifier.dart';
 import 'services/notification_service.dart';
+import 'user_avatar.dart';
 
 class DermatologistDashboard extends StatefulWidget {
   final String doctorName;
@@ -34,8 +38,12 @@ class _DermatologistDashboardState extends State<DermatologistDashboard> {
 
   late final List<Widget> _pages;
 
-  // Flux créé une seule fois : le recréer à chaque build relance la lecture Firestore
+  // Flux créés une seule fois : les recréer à chaque build relance la lecture Firestore
   late final Stream<List<AppNotification>> _notifications = NotificationLog.watch();
+  late final Stream<List<Consultation>> _consultations =
+      ConsultationService.watchForDermatologist();
+  late final Stream<List<ChatSummary>> _chats =
+      ChatActivity.watch(asDermatologist: true);
 
   @override
   void initState() {
@@ -228,80 +236,69 @@ class _DermatologistDashboardState extends State<DermatologistDashboard> {
           LayoutBuilder(
             builder: (context, constraints) {
               double cardWidth = (constraints.maxWidth - 15) / 2;
-              return Wrap(
-                spacing: 15,
-                runSpacing: 15,
-                children: [
-                  StreamBuilder<List<Consultation>>(
-                    // Les patients de ce dermatologue, pas tous les clients de l'app
-                    stream: ConsultationService.watchForDermatologist(),
-                    builder: (context, snapshot) {
-                      final count = (snapshot.data ?? const <Consultation>[])
-                          .where((c) => c.isAccepted)
-                          .length;
-                      return GestureDetector(
+              return StreamBuilder<List<Consultation>>(
+                // Les demandes reçues par ce dermatologue, pas toutes celles de l'app
+                stream: _consultations,
+                builder: (context, snapshot) {
+                  final consultations = snapshot.data ?? const <Consultation>[];
+                  final patients = consultations.where((c) => c.isAccepted).length;
+                  final pending = consultations.where((c) => c.isPending).length;
+
+                  return Wrap(
+                    spacing: 15,
+                    runSpacing: 15,
+                    children: [
+                      GestureDetector(
                         onTap: () => setState(() => _currentIndex = 1),
                         child: _buildSummaryCard(
                           'Total patients',
-                          count.toString(),
+                          patients.toString(),
                           Icons.people_rounded,
                           AppColors.lightPurple,
                           cardWidth,
                         ),
-                      );
-                    },
-                  ),
-                  StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance
-                        .collection('appointments')
-                        .where('doctorId', isEqualTo: _uid)
-                        .snapshots(),
-                    builder: (context, snapshot) {
-                      final count =
-                      snapshot.hasData ? snapshot.data!.docs.length : 0;
-                      return _buildSummaryCard(
-                        'Upcoming appts',
-                        count.toString(),
-                        Icons.event_available_rounded,
-                        AppColors.softPurple,
-                        cardWidth,
-                      );
-                    },
-                  ),
-                  StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance
-                        .collection('users')
-                        .doc(_uid)
-                        .collection('messages')
-                        .where('sender', isEqualTo: 'user')
-                        .snapshots(),
-                    builder: (context, snapshot) {
-                      final count =
-                      snapshot.hasData ? snapshot.data!.docs.length : 0;
-                      return GestureDetector(
-                        onTap: () => setState(() => _currentIndex = 3),
+                      ),
+                      GestureDetector(
+                        onTap: () => setState(() => _currentIndex = 2),
                         child: _buildSummaryCard(
-                          'Recent messages',
-                          count.toString(),
-                          Icons.chat_rounded,
-                          const Color(0xFFF1F1F1),
-                          constraints.maxWidth,
+                          'Pending requests',
+                          pending.toString(),
+                          Icons.inbox_rounded,
+                          AppColors.softPurple,
+                          cardWidth,
                         ),
-                      );
-                    },
-                  ),
-                ],
+                      ),
+                      StreamBuilder<List<ChatSummary>>(
+                        stream: _chats,
+                        builder: (context, chats) {
+                          final unread = (chats.data ?? const <ChatSummary>[])
+                              .fold(0, (total, chat) => total + chat.unread);
+                          return GestureDetector(
+                            onTap: () => setState(() => _currentIndex = 3),
+                            child: _buildSummaryCard(
+                              'Unread messages',
+                              unread.toString(),
+                              Icons.chat_rounded,
+                              const Color(0xFFF1F1F1),
+                              constraints.maxWidth,
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  );
+                },
               );
             },
           ),
           const SizedBox(height: 35),
 
-          // Today's appointments
+          // Frequent patients
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
-                'Today\'s appointments',
+                'Frequent patients',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -309,7 +306,7 @@ class _DermatologistDashboardState extends State<DermatologistDashboard> {
                 ),
               ),
               TextButton(
-                onPressed: () {},
+                onPressed: () => setState(() => _currentIndex = 3),
                 child: const Text(
                   'View all',
                   style: TextStyle(color: AppColors.greyText, fontSize: 13),
@@ -318,20 +315,21 @@ class _DermatologistDashboardState extends State<DermatologistDashboard> {
             ],
           ),
           const SizedBox(height: 10),
-          StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('appointments')
-                .where('doctorId', isEqualTo: _uid)
-                .orderBy('time')
-                .snapshots(),
+          StreamBuilder<List<ChatSummary>>(
+            stream: _chats,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
               }
 
-              final docs = snapshot.data?.docs ?? [];
+              // Les trois conversations les plus récentes : un patient accepté
+              // mais avec qui rien n'a encore été échangé n'a pas sa place ici.
+              final recent = (snapshot.data ?? const <ChatSummary>[])
+                  .where((chat) => chat.hasMessages)
+                  .take(3)
+                  .toList();
 
-              if (docs.isEmpty) {
+              if (recent.isEmpty) {
                 return Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(30),
@@ -341,7 +339,7 @@ class _DermatologistDashboardState extends State<DermatologistDashboard> {
                   ),
                   child: const Center(
                     child: Text(
-                      'No appointments scheduled for today',
+                      'No conversation yet',
                       style: TextStyle(
                           color: AppColors.greyText,
                           fontStyle: FontStyle.italic),
@@ -367,17 +365,10 @@ class _DermatologistDashboardState extends State<DermatologistDashboard> {
                 child: ListView.separated(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
-                  itemCount: docs.length,
+                  itemCount: recent.length,
                   separatorBuilder: (context, index) => const Divider(
                       height: 30, color: AppColors.softGrey),
-                  itemBuilder: (context, index) {
-                    final data = docs[index].data() as Map<String, dynamic>;
-                    return _buildAppointmentItem(
-                      data['time'] ?? '--:--',
-                      data['patientName'] ?? 'Unknown Patient',
-                      data['type'] ?? 'Consultation',
-                    );
-                  },
+                  itemBuilder: (context, index) => _buildPatientItem(recent[index]),
                 ),
               );
             },
@@ -424,36 +415,97 @@ class _DermatologistDashboardState extends State<DermatologistDashboard> {
     );
   }
 
-  Widget _buildAppointmentItem(String time, String patient, String type) {
-    return Row(
-      children: [
-        Text(
-          time,
-          style: const TextStyle(
-            color: AppColors.greyText,
-            fontWeight: FontWeight.w600,
-            fontSize: 14,
+  /// Patient de la liste des conversations récentes : ouvrir la ligne ouvre le
+  /// chat, ce que « View all » fait pour l'ensemble.
+  Widget _buildPatientItem(ChatSummary chat) {
+    final preview = chat.lastMessage.isEmpty
+        ? 'Conversation opened'
+        : chat.lastMessageIsMine
+            ? 'You: ${chat.lastMessage}'
+            : chat.lastMessage;
+
+    return InkWell(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => DermaDetailedChatPage(
+            patientId: chat.peerId,
+            patientName: chat.peerName,
+            isAi: false,
           ),
         ),
-        const SizedBox(width: 20),
-        Expanded(
-          child: RichText(
-            text: TextSpan(
-              style: const TextStyle(
-                  fontSize: 15, color: AppColors.darkPurple),
+      ),
+      child: Row(
+        children: [
+          UserAvatar(
+            userId: chat.peerId,
+            backgroundColor: AppColors.lightPurple,
+            radius: 20,
+          ),
+          const SizedBox(width: 15),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                TextSpan(
-                    text: patient,
-                    style: const TextStyle(fontWeight: FontWeight.bold)),
-                const TextSpan(text: ' — '),
-                TextSpan(text: type),
+                Text(
+                  chat.peerName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.darkPurple,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  preview,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 13, color: AppColors.greyText),
+                ),
               ],
             ),
           ),
-        ),
-        const Icon(Icons.chevron_right_rounded,
-            color: AppColors.softGrey, size: 20),
-      ],
+          const SizedBox(width: 10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                _formatChatDate(chat.lastMessageAt),
+                style: const TextStyle(fontSize: 11, color: AppColors.greyText),
+              ),
+              const SizedBox(height: 6),
+              if (chat.unread > 0)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.terracotta,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    chat.unread.toString(),
+                    style: const TextStyle(
+                      color: AppColors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
     );
+  }
+
+  /// L'heure pour aujourd'hui, la date au-delà : dans une liste des
+  /// conversations récentes, « 14:05 » ne veut rien dire trois jours plus tard.
+  static String _formatChatDate(DateTime? date) {
+    if (date == null) return '';
+
+    final now = DateTime.now();
+    final sameDay = date.year == now.year && date.month == now.month && date.day == now.day;
+    return DateFormat(sameDay ? 'HH:mm' : 'MMM d').format(date);
   }
 }

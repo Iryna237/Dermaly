@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'app_colors.dart';
 import 'models/chat_message.dart';
 import 'models/consultation.dart';
+import 'services/chat_activity.dart';
 import 'services/chat_service.dart';
 import 'services/consultation_service.dart';
 import 'services/message_notifier.dart';
@@ -191,6 +192,10 @@ class _DermaDetailedChatPageState extends State<DermaDetailedChatPage> {
   final String _myId = FirebaseAuth.instance.currentUser?.uid ?? '';
   bool _isTyping = false;
 
+  /// Conversation avec ce patient, vide face à l'IA qui n'en a pas
+  late final String _chatId =
+      widget.isAi ? '' : ChatActivity.chatIdFor(_myId, widget.patientId);
+
   // Flux créé une seule fois : le recréer à chaque build relance la lecture Firestore
   late final Stream<List<ChatMessage>> _messages =
       widget.isAi ? _chatService.getMessages() : _getPeerMessages();
@@ -200,13 +205,17 @@ class _DermaDetailedChatPageState extends State<DermaDetailedChatPage> {
     super.initState();
     // Lire une conversation vaut notification : pas de bannière pendant ce temps
     if (!widget.isAi) {
-      MessageNotifier.openChatId = MessageNotifier.chatIdFor(_myId, widget.patientId);
+      MessageNotifier.openChatId = _chatId;
+      ChatActivity.markRead(_chatId);
     }
   }
 
   @override
   void dispose() {
     MessageNotifier.openChatId = null;
+    // Les messages arrivés pendant la lecture sont lus, eux aussi : sans cette
+    // seconde marque, ils resteraient comptés comme non lus à la sortie.
+    if (!widget.isAi) ChatActivity.markRead(_chatId);
     _controller.dispose();
     super.dispose();
   }
@@ -270,13 +279,9 @@ class _DermaDetailedChatPageState extends State<DermaDetailedChatPage> {
   }
 
   Stream<List<ChatMessage>> _getPeerMessages() {
-    final String chatId = _myId.compareTo(widget.patientId) < 0
-        ? '${_myId}_${widget.patientId}'
-        : '${widget.patientId}_$_myId';
-
     return FirebaseFirestore.instance
         .collection('chats')
-        .doc(chatId)
+        .doc(_chatId)
         .collection('messages')
         .orderBy('timestamp', descending: true)
         .snapshots()
@@ -367,13 +372,9 @@ class _DermaDetailedChatPageState extends State<DermaDetailedChatPage> {
         if (mounted) setState(() => _isTyping = false);
       }
     } else {
-      final String chatId = _myId.compareTo(widget.patientId) < 0
-          ? '${_myId}_${widget.patientId}'
-          : '${widget.patientId}_$_myId';
-
       await FirebaseFirestore.instance
           .collection('chats')
-          .doc(chatId)
+          .doc(_chatId)
           .collection('messages')
           .add({
             'text': text,
