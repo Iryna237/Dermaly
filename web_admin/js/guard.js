@@ -25,7 +25,7 @@ export function requireAdmin() {
       try {
         snap = await getDoc(doc(db, 'users', user.uid));
       } catch (err) {
-        console.error('Lecture du profil impossible :', err);
+        console.error('Unable to read the admin profile:', err);
         return redirectToLogin('rules');
       }
 

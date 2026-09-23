@@ -46,7 +46,7 @@ onSnapshot(
   },
   (err) => {
     console.error(err);
-    errorEl.textContent = `Lecture impossible : ${err.message}`;
+    errorEl.textContent = `Unable to load: ${err.message}`;
     errorEl.classList.remove('d-none');
   },
 );
@@ -63,7 +63,7 @@ function render() {
       <div class="col-12">
         <div class="card"><div class="card-body text-center py-5">
           <i class="bi bi-check-circle text-success" style="font-size:2.5rem"></i>
-          <p class="text-secondary mt-3 mb-0">Aucune demande en attente.</p>
+          <p class="text-secondary mt-3 mb-0">No pending requests</p>
         </div></div>
       </div>`;
     return;
@@ -80,7 +80,7 @@ function render() {
 }
 
 function cardHtml(req) {
-  const name = req.fullName || 'Dermatologue';
+  const name = req.fullName || 'Doctor';
   const media = resolveDocument(req);
 
   return `
@@ -95,21 +95,21 @@ function cardHtml(req) {
               <div class="text-secondary small text-truncate">${esc(req.email ?? '')}</div>
             </div>
             <span class="badge badge-soft rounded-pill text-bg-warning">
-              <i class="bi bi-hourglass-split me-1"></i>En attente
+              <i class="bi bi-hourglass-split me-1"></i>Pending
             </span>
           </div>
 
           <hr class="my-3">
 
           <div class="d-flex flex-wrap gap-2 mb-3">
-            ${chip('bi-patch-check', `ONMC : ${req.onmcNumber ?? '—'}`)}
-            ${chip('bi-geo-alt', req.city || 'Ville inconnue')}
+            ${chip('bi-patch-check', `ONMC: ${req.onmcNumber ?? '—'}`)}
+            ${chip('bi-geo-alt', req.city || 'Unknown city')}
           </div>
 
           <dl class="row small mb-3">
-            <dt class="col-5 col-sm-4 text-secondary fw-normal">Diplôme</dt>
+            <dt class="col-5 col-sm-4 text-secondary fw-normal">Degree</dt>
             <dd class="col-7 col-sm-8 mb-1">${esc(req.degree ?? '—')}</dd>
-            <dt class="col-5 col-sm-4 text-secondary fw-normal">Établissement</dt>
+            <dt class="col-5 col-sm-4 text-secondary fw-normal">Establishment</dt>
             <dd class="col-7 col-sm-8 mb-0">${esc(req.establishment ?? '—')}</dd>
           </dl>
 
@@ -117,10 +117,10 @@ function cardHtml(req) {
 
           <div class="d-flex gap-2 mt-3">
             <button class="btn btn-outline-danger flex-fill" data-status="rejected" data-uid="${req.id}">
-              Rejeter
+              Reject Request
             </button>
             <button class="btn btn-success flex-fill" data-status="accepted" data-uid="${req.id}">
-              Accepter et vérifier
+              Accept &amp; Verify
             </button>
           </div>
 
@@ -137,14 +137,14 @@ function chip(icon, text) {
 
 function documentPreview(uid, media) {
   if (!media) {
-    return '<div class="text-secondary small fst-italic">Aucun document fourni.</div>';
+    return '<div class="text-secondary small fst-italic">No document provided</div>';
   }
   if (media.kind === 'pdf') {
     return `<button class="btn btn-light w-100 text-start border" data-view-doc="${uid}">
-      <i class="bi bi-file-earmark-pdf text-danger me-2"></i>Ouvrir le document (PDF)</button>`;
+      <i class="bi bi-file-earmark-pdf text-danger me-2"></i>Open document (PDF)</button>`;
   }
-  return `<button class="btn p-0 border-0 w-100" data-view-doc="${uid}" title="Agrandir">
-    <img src="${media.src}" alt="Document professionnel"
+  return `<button class="btn p-0 border-0 w-100" data-view-doc="${uid}" title="Enlarge">
+    <img src="${media.src}" alt="Professional document"
          class="w-100 rounded" style="height:140px; object-fit:cover; cursor:zoom-in">
   </button>`;
 }
@@ -186,11 +186,11 @@ function showDocument(uid) {
   const media = req && resolveDocument(req);
   if (!media) return;
 
-  modalTitle.textContent = `Document — ${req.fullName || 'Dermatologue'}`;
+  modalTitle.textContent = `Document — ${req.fullName || 'Doctor'}`;
   modalBody.innerHTML = media.kind === 'pdf'
-    ? `<iframe src="${media.src}" title="Document professionnel"
+    ? `<iframe src="${media.src}" title="Professional document"
          style="width:100%; height:75vh; border:0"></iframe>`
-    : `<img src="${media.src}" alt="Document professionnel" class="img-fluid">`;
+    : `<img src="${media.src}" alt="Professional document" class="img-fluid">`;
   modal.show();
 }
 
@@ -202,11 +202,11 @@ async function setStatus(uid, status, btn) {
     await updateDoc(doc(db, 'users', uid), { status });
     // Pas de retrait manuel : la requête filtre sur status == 'pending',
     // onSnapshot fait disparaître la carte tout seul.
-    flash(status === 'accepted' ? 'Dermatologue vérifié.' : 'Demande rejetée.');
+    flash(status === 'accepted' ? 'Doctor verified.' : 'Request rejected.');
   } catch (err) {
     console.error(err);
     siblings.forEach((b) => (b.disabled = false));
-    errorEl.textContent = `Mise à jour refusée : ${err.message}`;
+    errorEl.textContent = `Update failed: ${err.message}`;
     errorEl.classList.remove('d-none');
   }
 }

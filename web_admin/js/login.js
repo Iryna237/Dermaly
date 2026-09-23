@@ -18,8 +18,8 @@ const submitLabel = document.getElementById('submit-label');
 
 // Message hérité d'une redirection de guard.js.
 const REASONS = {
-  forbidden: "Ce compte n'a pas les droits administrateur.",
-  rules: 'Profil illisible. Vérifiez les Security Rules Firestore.',
+  forbidden: 'This account does not have administrator access.',
+  rules: 'Profile unreadable. Check your Firestore Security Rules.',
 };
 const reason = new URLSearchParams(window.location.search).get('reason');
 if (reason && REASONS[reason]) showError(REASONS[reason]);
@@ -30,7 +30,7 @@ form.addEventListener('submit', async (event) => {
 
   const email = document.getElementById('email').value.trim();
   const password = document.getElementById('password').value;
-  if (!email || !password) return showError('Renseignez votre email et votre mot de passe.');
+  if (!email || !password) return showError('Enter your email and password.');
 
   setBusy(true);
   try {
@@ -53,29 +53,29 @@ form.addEventListener('submit', async (event) => {
 function messageFor(err) {
   switch (err?.code) {
     case 'auth/invalid-email':
-      return 'Adresse email invalide.';
+      return 'Invalid email format.';
     case 'auth/user-disabled':
-      return 'Ce compte a été désactivé.';
+      return 'This user account has been disabled.';
     case 'auth/invalid-credential':
     case 'auth/wrong-password':
     case 'auth/user-not-found':
-      return 'Email ou mot de passe incorrect.';
+      return 'Incorrect email or password.';
     case 'auth/too-many-requests':
-      return 'Trop de tentatives. Réessayez dans quelques minutes.';
+      return 'Too many attempts. Try again in a few minutes.';
     case 'auth/network-request-failed':
-      return 'Connexion réseau impossible.';
+      return 'Network connection failed.';
     case 'permission-denied':
       return REASONS.rules;
     default:
       console.error(err);
-      return 'Connexion impossible. Réessayez.';
+      return 'Login failed. Please try again.';
   }
 }
 
 function setBusy(busy) {
   submitBtn.disabled = busy;
   spinner.classList.toggle('d-none', !busy);
-  submitLabel.textContent = busy ? 'Connexion…' : 'Se connecter';
+  submitLabel.textContent = busy ? 'Logging in…' : 'Log In';
 }
 
 function showError(message) {

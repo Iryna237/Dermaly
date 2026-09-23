@@ -22,13 +22,13 @@ const statusEl = document.getElementById('filter-status');
 
 const ROLES = {
   client: { label: 'Client', icon: 'bi-person-fill' },
-  dermatologist: { label: 'Dermatologue', icon: 'bi-clipboard2-pulse-fill' },
+  dermatologist: { label: 'Doctor', icon: 'bi-clipboard2-pulse-fill' },
   admin: { label: 'Admin', icon: 'bi-shield-lock-fill' },
 };
 const STATUSES = {
-  accepted: { label: 'Accepté', bg: 'success' },
-  pending: { label: 'En attente', bg: 'warning' },
-  rejected: { label: 'Rejeté', bg: 'danger' },
+  accepted: { label: 'Accepted', bg: 'success' },
+  pending: { label: 'Pending', bg: 'warning' },
+  rejected: { label: 'Rejected', bg: 'danger' },
 };
 
 /** Cache local de la collection : les filtres travaillent dessus, sans requête. */
@@ -45,7 +45,7 @@ onSnapshot(
   },
   (err) => {
     console.error(err);
-    errorEl.textContent = `Lecture impossible : ${err.message}`;
+    errorEl.textContent = `Unable to load: ${err.message}`;
     errorEl.classList.remove('d-none');
   },
 );
@@ -64,13 +64,13 @@ function render() {
       if (!term) return true;
       return `${u.fullName ?? ''} ${u.email ?? ''}`.toLowerCase().includes(term);
     })
-    .sort((a, b) => (a.fullName ?? '').localeCompare(b.fullName ?? '', 'fr'));
+    .sort((a, b) => (a.fullName ?? '').localeCompare(b.fullName ?? '', 'en'));
 
-  countEl.textContent = `(${rows.length}${rows.length !== users.length ? ` sur ${users.length}` : ''})`;
+  countEl.textContent = `(${rows.length}${rows.length !== users.length ? ` of ${users.length}` : ''})`;
 
   if (rows.length === 0) {
     tbody.innerHTML = `<tr><td colspan="4" class="text-center text-secondary py-4">
-      <i class="bi bi-inbox fs-4 d-block mb-2"></i>Aucun utilisateur ne correspond.</td></tr>`;
+      <i class="bi bi-inbox fs-4 d-block mb-2"></i>No users match your filters.</td></tr>`;
     return;
   }
 
@@ -81,17 +81,17 @@ function render() {
 }
 
 function rowHtml(user) {
-  const name = user.fullName || 'Utilisateur';
+  const name = user.fullName || 'User';
   const status = user.status ?? 'accepted';
-  const role = ROLES[user.role] ?? { label: user.role || 'inconnu', icon: 'bi-question-circle' };
+  const role = ROLES[user.role] ?? { label: user.role || 'unknown', icon: 'bi-question-circle' };
   const badge = STATUSES[status] ?? { label: status, bg: 'secondary' };
   const isSelf = user.id === currentUser.uid;
 
   // Les actions ne concernent que les demandes de dermatologues en attente,
   // comme dans AdminRequestsTab.
   const actions = user.role === 'dermatologist' && status === 'pending'
-    ? `<button class="btn btn-sm btn-outline-danger me-1" data-action="rejected" data-uid="${user.id}">Rejeter</button>
-       <button class="btn btn-sm btn-success" data-action="accepted" data-uid="${user.id}">Accepter</button>`
+    ? `<button class="btn btn-sm btn-outline-danger me-1" data-action="rejected" data-uid="${user.id}">Reject</button>
+       <button class="btn btn-sm btn-success" data-action="accepted" data-uid="${user.id}">Accept</button>`
     : '<span class="text-secondary small">—</span>';
 
   return `
@@ -100,7 +100,7 @@ function rowHtml(user) {
         <div class="d-flex align-items-center gap-2">
           <div class="avatar">${esc(name.charAt(0).toUpperCase())}</div>
           <div class="text-truncate">
-            <div class="fw-semibold text-truncate">${esc(name)}${isSelf ? ' <span class="text-secondary fw-normal small">(vous)</span>' : ''}</div>
+            <div class="fw-semibold text-truncate">${esc(name)}${isSelf ? ' <span class="text-secondary fw-normal small">(you)</span>' : ''}</div>
             <div class="text-secondary small text-truncate">${esc(user.email ?? '')}</div>
           </div>
         </div>
@@ -114,10 +114,10 @@ function rowHtml(user) {
 async function setStatus(uid, status) {
   try {
     await updateDoc(doc(db, 'users', uid), { status });
-    flash(`Statut mis à jour : ${STATUSES[status]?.label ?? status}.`);
+    flash(`Status updated: ${STATUSES[status]?.label ?? status}.`);
   } catch (err) {
     console.error(err);
-    errorEl.textContent = `Mise à jour refusée : ${err.message}`;
+    errorEl.textContent = `Update failed: ${err.message}`;
     errorEl.classList.remove('d-none');
   }
 }

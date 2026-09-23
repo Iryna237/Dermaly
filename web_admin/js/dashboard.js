@@ -11,10 +11,10 @@ const statsEl = document.getElementById('stats');
 const errorEl = document.getElementById('stats-error');
 
 const CARDS = [
-  { key: 'clients', label: 'Clients', icon: 'bi-person-fill', color: '#0d6efd' },
-  { key: 'doctors', label: 'Dermatologues actifs', icon: 'bi-clipboard2-pulse-fill', color: '#198754' },
-  { key: 'pending', label: 'Demandes en attente', icon: 'bi-hourglass-split', color: '#fd7e14' },
-  { key: 'admins', label: 'Administrateurs', icon: 'bi-shield-lock-fill', color: '#9371E1' },
+  { key: 'clients', label: 'Total Clients', icon: 'bi-person-fill', color: '#0d6efd' },
+  { key: 'doctors', label: 'Active Doctors', icon: 'bi-clipboard2-pulse-fill', color: '#198754' },
+  { key: 'pending', label: 'Pending Requests', icon: 'bi-hourglass-split', color: '#fd7e14' },
+  { key: 'admins', label: 'Admins', icon: 'bi-shield-lock-fill', color: '#9371E1' },
 ];
 
 await requireAdmin();
@@ -45,7 +45,7 @@ onSnapshot(
   },
   (err) => {
     console.error(err);
-    errorEl.textContent = `Lecture impossible : ${err.message}`;
+    errorEl.textContent = `Unable to load: ${err.message}`;
     errorEl.classList.remove('d-none');
   },
 );
