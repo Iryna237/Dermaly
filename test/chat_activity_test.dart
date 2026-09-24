@@ -38,14 +38,14 @@ void main() {
   group('ChatSummary', () {
     final now = DateTime(2026, 9, 22, 14);
 
-    test('une conversation vide n\'a ni message ni non-lu', () {
+    test('an empty conversation has no message and nothing unread', () {
       final summary = summarise(const []);
       expect(summary.hasMessages, isFalse);
       expect(summary.unread, 0);
       expect(summary.lastMessageAt, isNull);
     });
 
-    test('sans lecture enregistree, tout ce qui vient du patient est non lu', () {
+    test('with no recorded read, everything from the patient is unread', () {
       final summary = summarise([
         message('Bonjour docteur', patient, now),
         message('Une question', patient, now.subtract(const Duration(days: 2))),
@@ -53,7 +53,7 @@ void main() {
       expect(summary.unread, 2);
     });
 
-    test('seuls les messages recus apres la lecture comptent', () {
+    test('only messages received after the last read count', () {
       final summary = summarise(
         [
           message('Et depuis hier ?', patient, now),
@@ -65,7 +65,7 @@ void main() {
       expect(summary.unread, 1);
     });
 
-    test('mes propres messages ne sont jamais non lus', () {
+    test('my own messages are never unread', () {
       final summary = summarise([
         message('Je vous rappelle demain', me, now),
         message('Bien note', me, now.subtract(const Duration(minutes: 5))),
@@ -74,7 +74,7 @@ void main() {
       expect(summary.lastMessageIsMine, isTrue);
     });
 
-    test('l\'apercu est le message le plus recent', () {
+    test('the preview is the most recent message', () {
       final summary = summarise([
         message('Le dernier', patient, now),
         message('Le precedent', patient, now.subtract(const Duration(hours: 1))),
@@ -84,7 +84,7 @@ void main() {
       expect(summary.lastMessageIsMine, isFalse);
     });
 
-    test('un message sans horodatage resolu est un message tout neuf', () {
+    test('a message without a resolved timestamp is brand new', () {
       final summary = summarise(
         [
           {'text': 'Envoye a l\'instant', 'senderId': patient, 'timestamp': null},
@@ -94,14 +94,14 @@ void main() {
       expect(summary.unread, 1);
     });
 
-    test('le patient est l\'interlocuteur cote dermatologue', () {
+    test('the patient is the other party on the dermatologist side', () {
       final summary = summarise([message('Bonjour', patient, now)]);
       expect(summary.peerId, patient);
       expect(summary.peerName, 'Awa');
     });
   });
 
-  group('classement des conversations', () {
+  group('conversation ordering', () {
     ChatSummary chat(String name, DateTime? at) => ChatSummary(
           chatId: name,
           peerId: name,
@@ -112,7 +112,7 @@ void main() {
           unread: 0,
         );
 
-    test('la conversation la plus recente passe devant, les muettes a la fin', () {
+    test('the most recent conversation comes first, silent ones last', () {
       final chats = [
         chat('Ancienne', DateTime(2026, 9, 1)),
         chat('Jamais ecrit', null),
@@ -124,8 +124,8 @@ void main() {
     });
   });
 
-  group('dates de lecture', () {
-    test('les entrees exploitables sont converties, les autres ignorees', () {
+  group('read dates', () {
+    test('usable entries are converted, the others ignored', () {
       final reads = ChatActivity.readsFrom({
         'a_b': 1758542400000,
         'b_c': 'hier',
@@ -135,12 +135,12 @@ void main() {
       expect(reads['a_b'], DateTime.fromMillisecondsSinceEpoch(1758542400000));
     });
 
-    test('un champ absent ne donne aucune lecture', () {
+    test('a missing field gives no reads', () {
       expect(ChatActivity.readsFrom(null), isEmpty);
     });
   });
 
-  test('l\'identifiant de conversation est le meme des deux cotes', () {
+  test('the conversation id is the same on both sides', () {
     expect(ChatActivity.chatIdFor(me, patient), ChatActivity.chatIdFor(patient, me));
   });
 }

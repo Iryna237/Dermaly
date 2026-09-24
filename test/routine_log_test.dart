@@ -9,18 +9,18 @@ void main() {
     RoutineDayLog dayWithRoutine([RoutineDayLog log = RoutineDayLog.empty]) =>
         log.withRoutine(morningIds: morningIds, eveningIds: eveningIds);
 
-    test('une journee sans rien de coche est manquee', () {
+    test('a day with nothing checked is missed', () {
       expect(dayWithRoutine().status, RoutineDayStatus.missed);
     });
 
-    test('un seul produit coche rend la journee partielle', () {
+    test('a single checked product makes the day partial', () {
       final day = dayWithRoutine().toggle('protect|spf 50', morning: true);
       expect(day.status, RoutineDayStatus.partial);
       expect(day.isDone('protect|spf 50', morning: true), isTrue);
       expect(day.isDone('protect|spf 50', morning: false), isFalse);
     });
 
-    test('la journee est complete une fois matin et soir coches', () {
+    test('the day is complete once morning and evening are checked', () {
       var day = dayWithRoutine();
       for (final id in morningIds) {
         day = day.toggle(id, morning: true);
@@ -31,14 +31,14 @@ void main() {
       expect(day.status, RoutineDayStatus.complete);
     });
 
-    test('recocher decoche', () {
+    test('checking again unchecks', () {
       final day = dayWithRoutine()
           .toggle('protect|spf 50', morning: true)
           .toggle('protect|spf 50', morning: true);
       expect(day.status, RoutineDayStatus.missed);
     });
 
-    test('un produit retire de la routine ne compte plus', () {
+    test('a product removed from the routine no longer counts', () {
       final day = dayWithRoutine().toggle('protect|spf 50', morning: true);
       final reduced = day.withRoutine(
         morningIds: const {'cleanse|foaming cleanser'},
@@ -48,7 +48,7 @@ void main() {
       expect(reduced.totalCount, 2);
     });
 
-    test('la journee relue est celle qui a ete enregistree', () {
+    test('the day read back is the one that was saved', () {
       final day = dayWithRoutine().toggle('protect|spf 50', morning: true);
       final reloaded = RoutineDayLog.fromJson(day.toJson());
       expect(reloaded.morningDone, day.morningDone);
@@ -57,7 +57,7 @@ void main() {
       expect(reloaded.eveningTotal, day.eveningTotal);
     });
 
-    test('la cle du jour est chronologique', () {
+    test('the day key sorts chronologically', () {
       expect(RoutineLogStorage.dayKey(DateTime(2026, 9, 7)), '2026-09-07');
       expect(
         RoutineLogStorage.dayKey(DateTime(2026, 9, 7)).compareTo(

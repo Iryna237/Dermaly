@@ -304,7 +304,8 @@ class GeminiService {
   }
 
   /// Concatène le texte des `parts`, en ignorant les parties de réflexion du modèle.
-  static String _textFrom(Map<String, dynamic> responseData) {
+  @visibleForTesting
+  static String textFrom(Map<String, dynamic> responseData) {
     final candidates = responseData['candidates'] as List?;
     if (candidates == null || candidates.isEmpty) {
       throw const GeminiException('Gemini returned no candidates in response.');
@@ -325,7 +326,8 @@ class GeminiService {
 
   /// Décode la réponse JSON du modèle, en retirant les éventuelles balises de
   /// code markdown que Gemini ajoute parfois autour du JSON.
-  static Map<String, dynamic> _decodeJsonObject(String text) {
+  @visibleForTesting
+  static Map<String, dynamic> decodeJsonObject(String text) {
     var clean = text.trim();
     if (clean.startsWith('```')) {
       clean = clean
@@ -354,7 +356,8 @@ class GeminiService {
   /// Présenté comme une déclaration à recouper, jamais comme un constat : ce que
   /// la photo montre prime, mais l'habitude de vie et les allergies ne se voient
   /// pas sur une image.
-  static String _declaredContext(Map<String, List<String>>? questionnaire) {
+  @visibleForTesting
+  static String declaredContext(Map<String, List<String>>? questionnaire) {
     if (questionnaire == null || questionnaire.isEmpty) return '';
 
     final lines = [
@@ -397,7 +400,7 @@ $lines''';
 
     // 2. Prepare structured system prompt for Gemini
     final prompt = '''
-You are a certified professional dermatologist and skincare expert AI for Dermaly.${_declaredContext(questionnaire)}
+You are a certified professional dermatologist and skincare expert AI for Dermaly.${declaredContext(questionnaire)}
 
 STEP 1 - Check whether the image can be used at all.
 It is usable ONLY if it shows the skin of a real, living human face, photographed
@@ -468,7 +471,7 @@ Return ONLY a valid JSON object matching this exact format:
     });
 
     // 4. Parse Gemini response
-    final parsed = _decodeJsonObject(_textFrom(responseData));
+    final parsed = decodeJsonObject(textFrom(responseData));
 
     // Gemini valide la photo avant de diagnostiquer. Strict : sans `faceDetected: true`
     // explicite, on refuse plutôt que d'inventer un diagnostic sur une photo
@@ -507,7 +510,7 @@ Their latest skin analysis:
 - Concerns, 0 = none and 100 = severe:
 $concerns
 
-${_declaredContext(questionnaire)}
+${declaredContext(questionnaire)}
 
 Recommend 4 to 6 real, widely available products that treat THESE concerns,
 worst ones first. Never recommend a product containing an ingredient the user
@@ -553,7 +556,7 @@ Return ONLY a valid JSON object matching this exact format:
       }
     });
 
-    final parsed = _decodeJsonObject(_textFrom(responseData));
+    final parsed = decodeJsonObject(textFrom(responseData));
     final products = [
       for (final item in parsed['products'] as List? ?? const [])
         ?RoutineProduct.fromJson(item),
@@ -585,6 +588,6 @@ Return ONLY a valid JSON object matching this exact format:
       'generationConfig': {'temperature': temperature},
     });
 
-    return _textFrom(responseData);
+    return textFrom(responseData);
   }
 }

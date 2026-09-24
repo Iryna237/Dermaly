@@ -7,12 +7,25 @@ import 'package:flutter/foundation.dart';
 
 class AuthService {
   // Singleton pattern
-  static final AuthService _instance = AuthService._internal();
+  static AuthService _instance = AuthService._internal();
   factory AuthService() => _instance;
-  AuthService._internal();
+  AuthService._internal({FirebaseAuth? auth, FirebaseFirestore? firestore})
+      : _auth = auth ?? FirebaseAuth.instance,
+        _firestore = firestore ?? FirebaseFirestore.instance;
 
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  /// Remplace Firebase par des doubles de test, avant tout premier usage.
+  @visibleForTesting
+  static void useForTesting({
+    required FirebaseAuth auth,
+    required FirebaseFirestore firestore,
+  }) {
+    _instance = AuthService._internal(auth: auth, firestore: firestore);
+  }
+
+  final FirebaseAuth _auth;
+  final FirebaseFirestore _firestore;
+
+  FirebaseFirestore get firestore => _firestore;
 
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
