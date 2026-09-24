@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
 import 'models/routine_product.dart';
+import 'product_image.dart';
 import 'routine.dart';
 import 'services/gemini_service.dart';
 import 'services/notification_service.dart';
+import 'services/product_image_service.dart';
 import 'services/questionnaire_storage.dart';
 import 'services/routine_storage.dart';
 
@@ -69,16 +71,20 @@ class _RecommendedProductsPageState extends State<RecommendedProductsPage> {
         debugPrint('Erreur chargement du questionnaire: $e');
       }
 
-      final products = await GeminiService.recommendRoutine(
+      final recommended = await GeminiService.recommendRoutine(
         analysis,
         questionnaire: questionnaire,
       );
+
+      // Photos des vrais produits quand une base ouverte en possède. Résolues
+      // une fois ici, pour que la routine les porte sans nouvelle recherche.
+      final products = await ProductImageService.resolve(recommended);
 
       // La recommandation devient la routine de l'utilisateur. Un échec de
       // sauvegarde n'empêche pas de consulter les produits, il est juste signalé.
       var saveFailed = false;
       try {
-        await RoutineStorage.save(products);
+        await RoutineStorage.save(products, imagesResolved: true);
       } catch (e) {
         debugPrint('Erreur sauvegarde routine: $e');
         saveFailed = true;
@@ -270,17 +276,7 @@ class _RecommendedProductsPageState extends State<RecommendedProductsPage> {
               color: AppColors.softPurple.withAlpha(50),
               borderRadius: BorderRadius.circular(15),
             ),
-            child: Center(
-              child: Image.asset(
-                product.imagePath,
-                fit: BoxFit.contain,
-                errorBuilder: (context, error, stackTrace) => Icon(
-                  product.icon,
-                  size: 50,
-                  color: AppColors.primaryPurple,
-                ),
-              ),
-            ),
+            child: Center(child: ProductImage(product: product, iconSize: 50)),
           ),
           const SizedBox(width: 15),
           Expanded(

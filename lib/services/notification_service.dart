@@ -145,7 +145,8 @@ class NotificationService {
     }
   }
 
-  static Future<({List<RoutineProduct> products, DateTime? updatedAt})?> _loadRoutine() async {
+  static Future<({List<RoutineProduct> products, DateTime? updatedAt, bool imagesResolved})?>
+      _loadRoutine() async {
     try {
       return await RoutineStorage.loadSaved();
     } catch (e) {

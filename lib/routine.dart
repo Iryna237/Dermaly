@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
 import 'models/routine_product.dart';
+import 'product_image.dart';
 import 'products.dart';
 import 'services/routine_log_storage.dart';
+import 'services/product_image_service.dart';
 import 'services/routine_storage.dart';
 
 class RoutinePage extends StatefulWidget {
@@ -81,7 +83,16 @@ class _RoutinePageState extends State<RoutinePage> with WidgetsBindingObserver {
   Future<void> _loadRoutine() async {
     List<RoutineProduct>? saved;
     try {
-      saved = await RoutineStorage.load();
+      final stored = await RoutineStorage.loadSaved();
+      saved = stored?.products;
+
+      // Routine enregistrée avant la recherche de photos : la compléter une
+      // fois, puis marquer pour ne plus y revenir
+      if (saved != null && stored?.imagesResolved != true) {
+        final resolved = await ProductImageService.resolve(saved);
+        saved = resolved;
+        await RoutineStorage.save(resolved, imagesResolved: true);
+      }
     } catch (e) {
       debugPrint('Erreur chargement routine: $e');
     }
@@ -489,11 +500,7 @@ class _RoutinePageState extends State<RoutinePage> with WidgetsBindingObserver {
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: Image.asset(
-                product.imagePath,
-                fit: BoxFit.contain,
-                errorBuilder: (context, error, stackTrace) => Icon(Icons.medication_outlined, color: AppColors.terracotta.withAlpha(100), size: 30),
-              ),
+              child: ProductImage(product: product, iconSize: 30),
             ),
           ),
           const SizedBox(width: 12),
