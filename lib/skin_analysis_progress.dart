@@ -1,9 +1,9 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
+import 'local_photo.dart';
 import 'make_skin_analysis.dart';
 import 'services/gemini_service.dart';
 import 'services/notification_service.dart';
@@ -316,8 +316,8 @@ class _SkinAnalysisProgressPageState extends State<SkinAnalysisProgressPage>
                                   color: AppColors.terracotta,
                                 ),
                               )
-                            : Image.file(
-                                File(widget.imagePath),
+                            : localPhoto(
+                                widget.imagePath,
                                 fit: BoxFit.cover,
                                 errorBuilder: (context, error, stackTrace) => const Icon(
                                   Icons.face_retouching_natural,

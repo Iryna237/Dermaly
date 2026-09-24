@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:cross_file/cross_file.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -387,13 +388,15 @@ $lines''';
       imageBytes = byteData.buffer.asUint8List();
       mimeType = imagePath.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
     } else {
-      final file = File(imagePath);
-      if (!await file.exists()) {
+      // XFile lit aussi bien un fichier sur mobile qu'une URL blob sur le web
+      final file = XFile(imagePath);
+      try {
+        imageBytes = await file.readAsBytes();
+      } catch (_) {
         throw Exception('Image file not found at path: $imagePath');
       }
-      imageBytes = await file.readAsBytes();
       final ext = imagePath.split('.').last.toLowerCase();
-      mimeType = (ext == 'png') ? 'image/png' : 'image/jpeg';
+      mimeType = file.mimeType ?? ((ext == 'png') ? 'image/png' : 'image/jpeg');
     }
 
     final base64Image = base64Encode(imageBytes);
