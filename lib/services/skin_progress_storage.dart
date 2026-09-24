@@ -68,12 +68,14 @@ class SkinProgressStorage {
     final month = monthKey(analyzedAt);
     final dir = await SkinAnalysisStorage.imageDir(_imageDirName);
     final imageFileName = 'scan_${month}_${analyzedAt.millisecondsSinceEpoch}.jpg';
-    await SkinAnalysisStorage.persistImage(result.imagePath, dir, imageFileName);
+    // Sur le web, pas de copie : on garde le chemin fourni par le sélecteur de photo
+    var imagePath = result.imagePath;
+    if (dir != null) {
+      imagePath = '${dir.path}/$imageFileName';
+      await SkinAnalysisStorage.persistImage(result.imagePath, dir, imageFileName);
+    }
 
-    final saved = result.copyWith(
-      imagePath: '${dir.path}/$imageFileName',
-      analyzedAt: analyzedAt,
-    );
+    final saved = result.copyWith(imagePath: imagePath, analyzedAt: analyzedAt);
 
     await SkinAnalysisStorage.writeWithTimeout(
       scans.doc(month).set(SkinAnalysisStorage.encode(saved, imageFileName: imageFileName)),
@@ -81,6 +83,7 @@ class SkinProgressStorage {
 
     // Supprimer les photos des scans déjà faits ce mois-ci (remplacés, anciens scans
     // quotidiens compris) ; les photos des autres mois sont gardées
+    if (dir == null) return saved;
     await for (final entity in dir.list()) {
       final name = entity.uri.pathSegments.last;
       if (entity is File && name.startsWith('scan_$month') && name != imageFileName) {
