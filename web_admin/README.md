@@ -12,11 +12,15 @@ Les modules ES et Firebase Auth exigent une vraie origine HTTP.
 Ouvrir `index.html` en `file://` **ne marchera pas**.
 
 ```bash
-python -m http.server 5500 --directory web_admin
+python web_admin/serve.py
 ```
 
 Puis http://localhost:5500 (`localhost` est un domaine autorisé par défaut
 dans Firebase Auth).
+
+Ce petit serveur renvoie `Cache-Control: no-store`, sinon le navigateur
+garde les modules `.js` en cache et affiche l'ancienne version après
+chaque modification.
 
 ## Structure
 
