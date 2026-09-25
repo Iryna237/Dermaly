@@ -12,7 +12,7 @@
     },
     {
       "name": "app-web",
-      "runtimeExecutable": "C:\\flutter\\bin\\flutter.bat",
+      "runtimeExecutable": "flutter",
       "runtimeArgs": [
         "run",
         "-d",
