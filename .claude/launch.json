@@ -1,0 +1,38 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "admin-web",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "web_admin/serve.py",
+        "5500"
+      ],
+      "port": 5500
+    },
+    {
+      "name": "app-web",
+      "runtimeExecutable": "C:\\flutter\\bin\\flutter.bat",
+      "runtimeArgs": [
+        "run",
+        "-d",
+        "web-server",
+        "--web-port",
+        "5600"
+      ],
+      "port": 5600
+    },
+    {
+      "name": "phone-frame",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "5601",
+        "--directory",
+        ".claude/phone"
+      ],
+      "port": 5601
+    }
+  ]
+}
