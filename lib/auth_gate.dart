@@ -62,7 +62,7 @@ class _AuthGateState extends State<AuthGate> {
 
         if (user != null) {
           return FutureBuilder<DocumentSnapshot>(
-            future: FirebaseFirestore.instance.collection('users').doc(user.uid).get(),
+            future: AuthService().firestore.collection('users').doc(user.uid).get(),
             builder: (context, userSnapshot) {
               if (userSnapshot.connectionState == ConnectionState.waiting) {
                 return const SplashScreen();

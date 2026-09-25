@@ -85,7 +85,7 @@ class NotificationLog {
     final collection = _collection();
     if (collection == null) return;
 
-    final due = _dueNotifications(
+    final due = dueNotifications(
       routine: routine,
       routineSince: routineSince,
       scannedThisMonth: scannedThisMonth,
@@ -112,12 +112,15 @@ class NotificationLog {
   }
 
   /// Rappels qui auraient dû s'afficher depuis [_historyDays] jours.
-  static List<AppNotification> _dueNotifications({
+  /// [at] remplace l'heure courante, pour les tests.
+  @visibleForTesting
+  static List<AppNotification> dueNotifications({
     required List<RoutineProduct>? routine,
     required DateTime? routineSince,
     required bool scannedThisMonth,
+    DateTime? at,
   }) {
-    final now = DateTime.now();
+    final now = at ?? DateTime.now();
     final due = <AppNotification>[];
 
     final morningCount = routine?.where((p) => p.isMorning).length ?? 0;

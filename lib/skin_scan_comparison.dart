@@ -1,6 +1,6 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
+import 'local_photo.dart';
 import 'services/gemini_service.dart';
 
 const List<String> _months = [
@@ -76,8 +76,8 @@ class ScanPhoto extends StatelessWidget {
       borderRadius: BorderRadius.circular(radius),
       child: imagePath.isEmpty
           ? placeholder
-          : Image.file(
-              File(imagePath),
+          : localPhoto(
+              imagePath,
               width: width,
               height: height,
               fit: BoxFit.cover,

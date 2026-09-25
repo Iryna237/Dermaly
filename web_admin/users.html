@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dermaly Admin — Users</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <link href="css/style.css" rel="stylesheet">
+</head>
+<body class="gated">
+
+  <div class="app-loader">
+    <div class="spinner-border text-brand" role="status"><span class="visually-hidden">Loading…</span></div>
+  </div>
+
+  <div class="app-shell d-flex">
+    <!-- Barre latérale -->
+    <aside class="sidebar d-none d-lg-flex flex-column p-3">
+      <div class="d-flex align-items-center gap-2 px-2 py-3 mb-2">
+        <i class="bi bi-heart-pulse-fill fs-4 text-brand"></i>
+        <span class="fw-bold">Dermaly Admin</span>
+      </div>
+      <nav class="nav flex-column flex-grow-1">
+        <a class="nav-link" href="dashboard.html"><i class="bi bi-grid-1x2 me-2"></i>Overview</a>
+        <a class="nav-link" href="requests.html"><i class="bi bi-patch-check me-2"></i>Requests</a>
+        <a class="nav-link active" href="users.html"><i class="bi bi-people me-2"></i>Users</a>
+      </nav>
+      <div class="border-top pt-3">
+        <div class="d-flex align-items-center gap-2 px-2 mb-2">
+          <div class="avatar" data-admin-initial>A</div>
+          <div class="small text-truncate">
+            <div class="fw-semibold text-truncate" data-admin-name>Admin</div>
+            <div class="text-secondary" style="font-size:.75rem">Administrator</div>
+          </div>
+        </div>
+        <button class="btn btn-sm btn-link text-decoration-none w-100 text-start px-2" style="color: var(--terracotta)" data-logout>
+          <i class="bi bi-box-arrow-right me-2"></i>Log Out
+        </button>
+      </div>
+    </aside>
+
+    <div class="main-area">
+      <!-- En-tête mobile -->
+      <header class="d-lg-none bg-white border-bottom px-3 py-2 d-flex align-items-center justify-content-between">
+        <span class="fw-bold"><i class="bi bi-heart-pulse-fill text-brand me-2"></i>Dermaly Admin</span>
+        <button class="btn btn-sm btn-link text-decoration-none" style="color: var(--terracotta)" data-logout>
+          <i class="bi bi-box-arrow-right"></i>
+        </button>
+      </header>
+      <nav class="d-lg-none bg-white border-bottom px-3 py-2 d-flex gap-2">
+        <a class="btn btn-sm btn-light" href="dashboard.html">Overview</a>
+        <a class="btn btn-sm btn-light" href="requests.html">Requests</a>
+        <a class="btn btn-sm btn-primary" href="users.html">Users</a>
+      </nav>
+
+      <main class="p-3 p-md-4">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
+          <h1 class="h4 fw-bold mb-0">Users <span class="text-secondary fw-normal fs-6" id="count"></span></h1>
+        </div>
+
+        <div id="users-error" class="alert alert-danger d-none py-2 small"></div>
+        <div id="users-toast" class="alert alert-success d-none py-2 small"></div>
+
+        <div class="card">
+          <div class="card-body">
+            <!-- Filtres (côté client : la liste complète est déjà en mémoire) -->
+            <div class="row g-2 mb-3">
+              <div class="col-12 col-md-6">
+                <div class="input-group">
+                  <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-secondary"></i></span>
+                  <input type="search" class="form-control border-start-0 ps-0" id="search" placeholder="Search by name or email…">
+                </div>
+              </div>
+              <div class="col-6 col-md-3">
+                <select class="form-select" id="filter-role">
+                  <option value="">All roles</option>
+                  <option value="client">Clients</option>
+                  <option value="dermatologist">Doctors</option>
+                  <option value="admin">Admins</option>
+                </select>
+              </div>
+              <div class="col-6 col-md-3">
+                <select class="form-select" id="filter-status">
+                  <option value="">All statuses</option>
+                  <option value="accepted">Accepted</option>
+                  <option value="pending">Pending</option>
+                  <option value="rejected">Rejected</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="table-responsive">
+              <table class="table align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th>User</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                    <th class="text-end">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="users-body">
+                  <tr>
+                    <td colspan="4" class="text-center text-secondary py-4">
+                      <div class="spinner-border spinner-border-sm text-brand me-2"></div>Loading…
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script type="module" src="js/users.js"></script>
+</body>
+</html>

@@ -13,12 +13,25 @@ class RoutineProduct {
   final String description;
   final RoutineTime time;
 
+  /// Photo du vrai produit, quand une base ouverte en possède une.
+  /// Null sinon : l'illustration de catégorie prend alors le relais.
+  final String? imageUrl;
+
   const RoutineProduct({
     required this.category,
     required this.name,
     required this.description,
     this.time = RoutineTime.both,
+    this.imageUrl,
   });
+
+  RoutineProduct withImage(String? url) => RoutineProduct(
+        category: category,
+        name: name,
+        description: description,
+        time: time,
+        imageUrl: url,
+      );
 
   /// Identifiant stable du produit, utilise pour retenir qu'il a ete applique
   /// dans la journee. Le nom seul suffit a le distinguer dans une routine, la
@@ -69,6 +82,7 @@ class RoutineProduct {
         'name': name,
         'description': description,
         'time': time.name,
+        if (imageUrl != null) 'imageUrl': imageUrl,
       };
 
   /// Reconstruit un produit depuis une map Gemini ou Firestore.
@@ -90,6 +104,7 @@ class RoutineProduct {
           ? 'Recommended for your skin.'
           : description,
       time: _timeFrom(raw['time']),
+      imageUrl: (raw['imageUrl'] as Object?)?.toString(),
     );
   }
 

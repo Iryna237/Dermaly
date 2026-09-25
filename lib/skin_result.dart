@@ -1,6 +1,6 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
+import 'local_photo.dart';
 import 'products.dart';
 import 'questionnaire.dart';
 import 'services/gemini_service.dart';
@@ -136,8 +136,8 @@ class SkinResultPage extends StatelessWidget {
                         fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
                       )
-                          : Image.file(
-                        File(imagePath),
+                          : localPhoto(
+                        imagePath,
                         fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
                       ),

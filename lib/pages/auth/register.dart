@@ -682,9 +682,9 @@ class PendingVerificationPage extends StatelessWidget {
               ),
               const SizedBox(height: 40),
               StreamBuilder<DocumentSnapshot>(
-                stream: FirebaseFirestore.instance
+                stream: AuthService().firestore
                     .collection('users')
-                    .doc(FirebaseAuth.instance.currentUser?.uid)
+                    .doc(AuthService().currentUserId)
                     .snapshots(),
                 builder: (context, snapshot) {
                   if (!snapshot.hasData) {

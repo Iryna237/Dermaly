@@ -22,7 +22,9 @@ class SkinAnalysisStorage {
     return FirebaseFirestore.instance.collection('users').doc(uid);
   }
 
-  static Future<Directory> imageDir(String dirName) async {
+  /// Dossier local des photos, ou null sur le web (pas de dossier documents)
+  static Future<Directory?> imageDir(String dirName) async {
+    if (kIsWeb) return null;
     final docs = await getApplicationDocumentsDirectory();
     return Directory('${docs.path}/$dirName');
   }
@@ -39,7 +41,8 @@ class SkinAnalysisStorage {
   }
 
   /// Reconstruit un résultat depuis une map Firestore, ou null si [raw] n'est pas une analyse
-  static SkinAnalysisResult? decode(Object? raw, Directory imageDir) {
+  /// Sans [imageDir] (web), le résultat n'a pas de photo.
+  static SkinAnalysisResult? decode(Object? raw, Directory? imageDir) {
     if (raw is! Map) return null;
 
     final data = Map<String, dynamic>.from(raw);
@@ -48,7 +51,8 @@ class SkinAnalysisStorage {
     }
 
     final imageFileName = data['imageFileName'] as String?;
-    final imagePath = imageFileName != null ? '${imageDir.path}/$imageFileName' : '';
+    final imagePath =
+        imageFileName != null && imageDir != null ? '${imageDir.path}/$imageFileName' : '';
 
     final analyzedAtMs = data['analyzedAt'];
     return SkinAnalysisResult.fromJson(data, imagePath: imagePath).copyWith(
@@ -92,8 +96,12 @@ class SkinAnalysisStorage {
 
     final dir = await imageDir(_imageDirName);
     final imageFileName = 'analysis_${analyzedAt.millisecondsSinceEpoch}.jpg';
-    final persistedPath = '${dir.path}/$imageFileName';
-    await persistImage(result.imagePath, dir, imageFileName);
+    // Sur le web, pas de copie : on garde le chemin fourni par le sélecteur de photo
+    var persistedPath = result.imagePath;
+    if (dir != null) {
+      persistedPath = '${dir.path}/$imageFileName';
+      await persistImage(result.imagePath, dir, imageFileName);
+    }
 
     final saved = result.copyWith(imagePath: persistedPath, analyzedAt: analyzedAt);
 
@@ -104,6 +112,7 @@ class SkinAnalysisStorage {
     ));
 
     // Supprimer les anciennes photos d'analyse
+    if (dir == null) return saved;
     await for (final entity in dir.list()) {
       if (entity is File && entity.path != persistedPath) {
         try {

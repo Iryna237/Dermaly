@@ -18,7 +18,8 @@ class RoutineStorage {
 
   /// Comme [load], mais avec la date d'enregistrement : les rappels s'en servent
   /// pour ne pas journaliser de notifications antérieures à la routine.
-  static Future<({List<RoutineProduct> products, DateTime? updatedAt})?> loadSaved() async {
+  static Future<({List<RoutineProduct> products, DateTime? updatedAt, bool imagesResolved})?>
+      loadSaved() async {
     final docRef = SkinAnalysisStorage.userDoc();
     if (docRef == null) return null;
 
@@ -38,11 +39,21 @@ class RoutineStorage {
       updatedAt: updatedAt is int
           ? DateTime.fromMillisecondsSinceEpoch(updatedAt)
           : null,
+      // Les routines enregistrées avant la recherche de photos n'ont pas ce
+      // marqueur : elles seront complétées à la prochaine ouverture
+      imagesResolved: raw['imagesResolved'] == true,
     );
   }
 
   /// Remplace la routine par [products].
-  static Future<void> save(List<RoutineProduct> products) async {
+  ///
+  /// [imagesResolved] indique que les photos ont déjà été cherchées : les
+  /// produits restés sans image n'en ont pas dans la base, inutile de
+  /// recommencer à chaque ouverture.
+  static Future<void> save(
+    List<RoutineProduct> products, {
+    bool imagesResolved = false,
+  }) async {
     final docRef = SkinAnalysisStorage.userDoc();
     if (docRef == null) return;
 
@@ -52,6 +63,7 @@ class RoutineStorage {
         _field: {
           'products': [for (final product in products) product.toJson()],
           'updatedAt': DateTime.now().millisecondsSinceEpoch,
+          'imagesResolved': imagesResolved,
         },
       },
       SetOptions(mergeFields: [_field]),
