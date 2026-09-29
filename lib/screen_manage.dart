@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:ziskin/ai_chat.dart';
-import 'package:ziskin/app_colors.dart';
+import 'package:ziskin/client_nav_bar.dart';
 import 'package:ziskin/homepage.dart';
 import 'package:ziskin/make_skin_analysis.dart';
 import 'package:ziskin/services/chat_activity.dart';
 import 'package:ziskin/services/message_notifier.dart';
 import 'package:ziskin/services/notification_service.dart';
 import 'package:ziskin/skin_progress.dart';
-import 'package:ziskin/unread_badge.dart';
 
 import 'package:ziskin/pages/profile_page.dart';
 
@@ -70,29 +69,14 @@ class _ScreenManageState extends State<ScreenManage> {
           final unread = (snapshot.data ?? const <ChatSummary>[])
               .fold(0, (total, chat) => total + chat.unread);
 
-          return BottomNavigationBar(
+          return ClientNavBar(
+            currentIndex: _currentIndex,
             onTap: (page) {
               setState(() {
                 _currentIndex = page;
               });
             },
-            currentIndex: _currentIndex,
-            type: BottomNavigationBarType.fixed,
-            selectedItemColor: AppColors.terracotta,
-            unselectedItemColor: AppColors.greyText,
-            unselectedLabelStyle: const TextStyle(color: AppColors.greyText),
-            showUnselectedLabels: true,
-            items: [
-              const BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
-              const BottomNavigationBarItem(icon: Icon(Icons.show_chart), label: "Progress"),
-              const BottomNavigationBarItem(icon: Icon(Icons.camera_alt), label: "Scan"),
-              BottomNavigationBarItem(
-                icon: unreadDot(const Icon(Icons.chat), show: unread > 0),
-                label: "Chat",
-              ),
-              const BottomNavigationBarItem(
-                  icon: Icon(Icons.person_outline_rounded), label: "Profile"),
-            ],
+            unreadChat: unread > 0,
           );
         },
       ),
