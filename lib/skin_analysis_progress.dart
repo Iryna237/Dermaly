@@ -253,13 +253,16 @@ class _SkinAnalysisProgressPageState extends State<SkinAnalysisProgressPage>
   }
 
   void _useDemoFallback() {
-    Navigator.pushReplacement(
+    // Comme un vrai résultat : retirer caméra et progression de la pile, le
+    // retour ramène à l'accueil
+    Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(
         builder: (context) => SkinResultPage.fromResult(
           SkinAnalysisResult.fallback(imagePath: widget.imagePath),
         ),
       ),
+      (route) => route.isFirst,
     );
   }
 

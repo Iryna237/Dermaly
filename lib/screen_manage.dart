@@ -55,7 +55,13 @@ class _ScreenManageState extends State<ScreenManage> {
         },
       ),
       const SkinProgressPage(),
-      const MakeSkinAnalysisPage(),
+      MakeSkinAnalysisPage(
+        onBack: () {
+          setState(() {
+            _currentIndex = 0;
+          });
+        },
+      ),
       const ClientChatListPage(),
       const ProfilePage(),
     ];
