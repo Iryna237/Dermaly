@@ -17,6 +17,7 @@ import 'models/consultation.dart';
 import 'notifications_page.dart';
 import 'services/notification_log.dart';
 import 'patients.dart';
+import 'pill_nav_bar.dart';
 import 'services/chat_activity.dart';
 import 'services/consultation_service.dart';
 import 'services/message_notifier.dart';
@@ -73,49 +74,37 @@ class _DermatologistDashboardState extends State<DermatologistDashboard> {
     return Scaffold(
       backgroundColor: AppColors.white,
       body: SafeArea(child: _pages[_currentIndex]),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: AppColors.white,
-          border: Border(top: BorderSide(color: AppColors.softGrey, width: 1)),
-        ),
-        // Le point de l'onglet Chat est tenu par le même flux que la carte des
-        // messages non lus : les deux disent la même chose au même moment.
-        child: StreamBuilder<List<ChatSummary>>(
-          stream: _chats,
-          builder: (context, snapshot) {
-            final unread = (snapshot.data ?? const <ChatSummary>[])
-                .fold(0, (total, chat) => total + chat.unread);
+      // Le point de l'onglet Chat est tenu par le même flux que la carte des
+      // messages non lus : les deux disent la même chose au même moment.
+      bottomNavigationBar: StreamBuilder<List<ChatSummary>>(
+        stream: _chats,
+        builder: (context, snapshot) {
+          final unread = (snapshot.data ?? const <ChatSummary>[])
+              .fold(0, (total, chat) => total + chat.unread);
 
-            return BottomNavigationBar(
-              currentIndex: _currentIndex,
-              onTap: (index) => setState(() => _currentIndex = index),
-              type: BottomNavigationBarType.fixed,
-              backgroundColor: AppColors.white,
-              selectedItemColor: AppColors.primaryPurple,
-              unselectedItemColor: AppColors.greyText,
-              selectedLabelStyle:
-              const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-              unselectedLabelStyle: const TextStyle(fontSize: 12),
-              items: [
-                const BottomNavigationBarItem(
-                    icon: Icon(Icons.grid_view_rounded), label: 'Home'),
-                const BottomNavigationBarItem(
-                    icon: Icon(Icons.people_alt_outlined), label: 'Patients'),
-                const BottomNavigationBarItem(
-                    icon: Icon(Icons.inbox_rounded), label: 'Requests'),
-                BottomNavigationBarItem(
-                  icon: unreadDot(
-                    const Icon(Icons.chat_bubble_outline_rounded),
-                    show: unread > 0,
-                  ),
-                  label: 'Chat',
-                ),
-                const BottomNavigationBarItem(
-                    icon: Icon(Icons.person_outline_rounded), label: 'Profile'),
-              ],
-            );
-          },
-        ),
+          return PillNavBar(
+            currentIndex: _currentIndex,
+            onTap: (index) => setState(() => _currentIndex = index),
+            accent: AppColors.primaryPurple,
+            accentSoft: AppColors.lightPurple,
+            centerGradient: const [AppColors.primaryPurple, AppColors.darkPurple],
+            tabs: [
+              const NavTab(
+                  icon: Icons.grid_view_outlined, activeIcon: Icons.grid_view_rounded, label: 'Home'),
+              const NavTab(
+                  icon: Icons.people_alt_outlined, activeIcon: Icons.people_alt_rounded, label: 'Patients'),
+              const NavTab(icon: Icons.inbox_outlined, activeIcon: Icons.inbox_rounded, label: 'Requests'),
+              NavTab(
+                icon: Icons.chat_bubble_outline_rounded,
+                activeIcon: Icons.chat_bubble_rounded,
+                label: 'Chat',
+                dot: unread > 0,
+              ),
+              const NavTab(
+                  icon: Icons.person_outline_rounded, activeIcon: Icons.person_rounded, label: 'Profile'),
+            ],
+          );
+        },
       ),
     );
   }
