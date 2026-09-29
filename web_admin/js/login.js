@@ -5,6 +5,7 @@
 
 import { auth, db } from './firebase-config.js';
 import {
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut,
 } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-auth.js';
@@ -15,6 +16,10 @@ const alertBox = document.getElementById('alert');
 const submitBtn = document.getElementById('submit-btn');
 const spinner = document.getElementById('spinner');
 const submitLabel = document.getElementById('submit-label');
+const emailInput = document.getElementById('email');
+const passwordInput = document.getElementById('password');
+const toggleBtn = document.getElementById('toggle-password');
+const forgotBtn = document.getElementById('forgot-btn');
 
 // Message hérité d'une redirection de guard.js.
 const REASONS = {
@@ -28,8 +33,8 @@ form.addEventListener('submit', async (event) => {
   event.preventDefault();
   hideError();
 
-  const email = document.getElementById('email').value.trim();
-  const password = document.getElementById('password').value;
+  const email = emailInput.value.trim();
+  const password = passwordInput.value;
   if (!email || !password) return showError('Enter your email and password.');
 
   setBusy(true);
@@ -47,6 +52,35 @@ form.addEventListener('submit', async (event) => {
     showError(messageFor(err));
   } finally {
     setBusy(false);
+  }
+});
+
+toggleBtn.addEventListener('click', () => {
+  const hidden = passwordInput.type === 'password';
+  passwordInput.type = hidden ? 'text' : 'password';
+  toggleBtn.querySelector('i').className = hidden ? 'bi bi-eye-fill' : 'bi bi-eye-slash-fill';
+  toggleBtn.setAttribute('aria-label', hidden ? 'Hide password' : 'Show password');
+});
+
+// Comme le dialogue « Forgot password ? » de l'app, mais sur l'email saisi.
+forgotBtn.addEventListener('click', async () => {
+  hideError();
+  const email = emailInput.value.trim();
+  if (!email) {
+    emailInput.focus();
+    return showError('Enter your email address to receive a password reset link.');
+  }
+
+  forgotBtn.disabled = true;
+  try {
+    await sendPasswordResetEmail(auth, email);
+    // Firebase répond OK même si aucun compte n'a cet email (protection
+    // contre l'énumération) : on ne peut rien affirmer de plus.
+    showSuccess(`If an account uses ${email}, a password reset link has been sent there.`);
+  } catch (err) {
+    showError(messageFor(err));
+  } finally {
+    forgotBtn.disabled = false;
   }
 });
 
@@ -75,12 +109,21 @@ function messageFor(err) {
 function setBusy(busy) {
   submitBtn.disabled = busy;
   spinner.classList.toggle('d-none', !busy);
-  submitLabel.textContent = busy ? 'Logging in…' : 'Log In';
+  submitLabel.textContent = busy ? 'LOGGING IN…' : 'LOGIN';
 }
 
 function showError(message) {
+  showAlert(message, 'alert-danger');
+}
+
+function showSuccess(message) {
+  showAlert(message, 'alert-success');
+}
+
+function showAlert(message, variant) {
   alertBox.textContent = message;
-  alertBox.classList.remove('d-none');
+  alertBox.classList.remove('d-none', 'alert-danger', 'alert-success');
+  alertBox.classList.add(variant);
 }
 
 function hideError() {
