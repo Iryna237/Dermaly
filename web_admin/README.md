@@ -37,29 +37,17 @@ chaque modification.
 ## Règles Firestore
 
 `js/guard.js` masque l'interface aux non-admins, mais c'est **cosmétique** :
-seules les Security Rules protègent réellement les données. Il faut autoriser
-un admin à lire toute la collection `users` et à modifier `status` :
+seules les Security Rules protègent réellement les données.
 
-```javascript
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
+Les règles de tout le projet, app mobile et console admin, sont dans
+[`firestore.rules`](../firestore.rules) à la racine. Pour la console, elles
+autorisent l'admin à lire toute la collection `users` et à modifier le seul
+champ `status` des dermatologues. Elles empêchent aussi un compte de se donner
+le rôle admin : le compte admin se crée depuis la console Firebase.
 
-    function isAdmin() {
-      return request.auth != null
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-    }
-
-    match /users/{uid} {
-      allow read: if request.auth != null && (request.auth.uid == uid || isAdmin());
-      allow update: if isAdmin() || request.auth.uid == uid;
-    }
-  }
-}
+```bash
+firebase deploy --only firestore:rules
 ```
-
-À adapter à vos règles existantes — celles-ci sont un point de départ, pas un
-fichier à copier tel quel par-dessus le vôtre.
 
 > Le `get()` dans `isAdmin()` coûte une lecture par requête. Pour s'en passer,
 > migrer le rôle vers un **custom claim** Auth (`request.auth.token.role == 'admin'`),
