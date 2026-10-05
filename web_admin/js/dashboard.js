@@ -5,7 +5,7 @@
 
 import { db } from './firebase-config.js';
 import { collection, onSnapshot } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-firestore.js';
-import { requireAdmin, wireLogout } from './guard.js';
+import { requireAdmin, wireAccount, wireLogout } from './guard.js';
 
 const statsEl = document.getElementById('stats');
 const errorEl = document.getElementById('stats-error');
@@ -19,6 +19,7 @@ const CARDS = [
 
 await requireAdmin();
 wireLogout();
+wireAccount();
 
 onSnapshot(
   collection(db, 'users'),

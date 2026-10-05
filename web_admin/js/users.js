@@ -10,7 +10,7 @@ import {
   onSnapshot,
   updateDoc,
 } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-firestore.js';
-import { requireAdmin, wireLogout } from './guard.js';
+import { requireAdmin, wireAccount, wireLogout } from './guard.js';
 
 const tbody = document.getElementById('users-body');
 const countEl = document.getElementById('count');
@@ -36,6 +36,7 @@ let users = [];
 
 const { user: currentUser } = await requireAdmin();
 wireLogout();
+wireAccount();
 
 onSnapshot(
   collection(db, 'users'),

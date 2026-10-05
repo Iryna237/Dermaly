@@ -65,6 +65,17 @@ fichier à copier tel quel par-dessus le vôtre.
 > migrer le rôle vers un **custom claim** Auth (`request.auth.token.role == 'admin'`),
 > posé par une Cloud Function.
 
+## Email du compte admin
+
+« Forgot Password? » envoie le lien à l'email du compte Firebase Auth. Le compte
+créé par `lib/tool/seed_admin.dart` utilise `admin@dermascan.com`, une adresse
+qui n'est pas à nous : le lien n'arriverait jamais chez l'admin.
+
+Une fois connecté, **Account** (barre latérale) remplace cet email : Firebase
+envoie un lien de vérification à la nouvelle adresse, l'email change quand on
+l'ouvre, puis on se reconnecte avec. `users/{uid}.email` est réaligné au
+chargement suivant de la console.
+
 ## Déployer sur Firebase Hosting
 
 Ajouter à `firebase.json` (à la racine du projet) :

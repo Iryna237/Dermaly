@@ -14,7 +14,7 @@ import {
   updateDoc,
   where,
 } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-firestore.js';
-import { requireAdmin, wireLogout } from './guard.js';
+import { requireAdmin, wireAccount, wireLogout } from './guard.js';
 
 const listEl = document.getElementById('requests');
 const errorEl = document.getElementById('requests-error');
@@ -29,6 +29,7 @@ let requests = [];
 
 await requireAdmin();
 wireLogout();
+wireAccount();
 
 // Requête à deux égalités : Firestore la sert par intersection des index
 // simples, aucun index composite à créer.
