@@ -12,45 +12,49 @@
 
   <!-- Même mise en page que lib/pages/auth/login.dart -->
   <main class="login-main">
-    <div class="text-center">
-      <img src="img/logo.png" alt="Dermaly" class="login-logo">
-      <h1 class="login-title">Welcome back 👋</h1>
-      <p class="login-subtitle">Login to the administration console</p>
+    <div class="login-frame">
+      <div class="text-center">
+        <img src="img/logo.png" alt="Dermaly" class="login-logo">
+        <h1 class="login-title">Welcome back 👋</h1>
+        <p class="login-subtitle">Login to the administration console</p>
+      </div>
+
+      <div class="login-card">
+        <div id="alert" class="alert alert-danger d-none py-2 small" role="alert"></div>
+
+        <form id="login-form" novalidate>
+          <div class="login-field mb-4">
+            <i class="bi bi-envelope login-field-icon" aria-hidden="true"></i>
+            <div class="form-floating">
+              <input type="email" class="form-control" id="email" placeholder="Email Address" autocomplete="username" required>
+              <label for="email">Email Address</label>
+            </div>
+          </div>
+
+          <div class="login-field">
+            <i class="bi bi-lock login-field-icon" aria-hidden="true"></i>
+            <div class="form-floating">
+              <input type="password" class="form-control" id="password" placeholder="Password" autocomplete="current-password" required>
+              <label for="password">Password</label>
+            </div>
+            <button type="button" class="login-field-toggle" id="toggle-password" aria-label="Show password">
+              <i class="bi bi-eye-slash-fill"></i>
+            </button>
+          </div>
+
+          <div class="text-end">
+            <button type="button" class="btn btn-link login-link" id="forgot-btn">Forgot Password?</button>
+          </div>
+
+          <button type="submit" class="btn login-btn w-100 mt-3" id="submit-btn">
+            <span class="spinner-border spinner-border-sm d-none me-2" id="spinner" aria-hidden="true"></span>
+            <span id="submit-label">LOGIN</span>
+          </button>
+        </form>
+      </div>
+
+      <p class="text-center login-note">Administrators only</p>
     </div>
-
-    <div id="alert" class="alert alert-danger d-none py-2 small" role="alert"></div>
-
-    <form id="login-form" novalidate>
-      <div class="login-field mb-4">
-        <i class="bi bi-envelope login-field-icon" aria-hidden="true"></i>
-        <div class="form-floating">
-          <input type="email" class="form-control" id="email" placeholder="Email Address" autocomplete="username" required>
-          <label for="email">Email Address</label>
-        </div>
-      </div>
-
-      <div class="login-field">
-        <i class="bi bi-lock login-field-icon" aria-hidden="true"></i>
-        <div class="form-floating">
-          <input type="password" class="form-control" id="password" placeholder="Password" autocomplete="current-password" required>
-          <label for="password">Password</label>
-        </div>
-        <button type="button" class="login-field-toggle" id="toggle-password" aria-label="Show password">
-          <i class="bi bi-eye-slash-fill"></i>
-        </button>
-      </div>
-
-      <div class="text-end">
-        <button type="button" class="btn btn-link login-link" id="forgot-btn">Forgot Password?</button>
-      </div>
-
-      <button type="submit" class="btn login-btn w-100 mt-3" id="submit-btn">
-        <span class="spinner-border spinner-border-sm d-none me-2" id="spinner" aria-hidden="true"></span>
-        <span id="submit-label">LOGIN</span>
-      </button>
-    </form>
-
-    <p class="text-center login-note">Administrators only</p>
   </main>
 
   <script type="module" src="js/login.js"></script>

@@ -53,6 +53,10 @@ body.gated .app-loader { display: flex; }
 }
 .text-brand { color: var(--primary-purple) !important; }
 
+/* Logo de l'app dans la barre latérale et l'en-tête mobile */
+.brand-logo { height: 48px; width: auto; object-fit: contain; }
+.brand-logo-sm { height: 32px; }
+
 /* --- Barre latérale ---------------------------------------------------- */
 .sidebar {
   width: 250px;
@@ -121,13 +125,39 @@ body.gated .app-loader { display: flex; }
 /* --- Connexion (calquée sur lib/pages/auth/login.dart) ------------------ */
 body.login-page { background: #fff; }
 .login-main {
-  max-width: 460px;
+  max-width: 540px;
   margin: 0 auto;
-  padding: 60px 30px 40px;
+  padding: 40px 30px;
+}
+
+/* Grand cadre : du logo jusqu'à « Administrators only » */
+.login-frame {
+  background: #fff;
+  border: 1px solid #ececec;
+  border-radius: 28px;
+  padding: 40px 40px 32px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .07);
 }
 .login-logo { width: 200px; height: 200px; object-fit: contain; margin-bottom: 20px; }
 .login-title { font-size: 28px; font-weight: 700; color: rgba(0, 0, 0, .87); margin-bottom: 8px; }
 .login-subtitle { font-size: 16px; color: #616161; margin-bottom: 40px; }
+
+/* Cadre du formulaire : le sépare du logo et du titre */
+.login-card {
+  background: #fff;
+  border: 1px solid #ececec;
+  border-radius: 20px;
+  padding: 32px 28px 28px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .06);
+}
+
+/* Deux cadres emboîtés : marges réduites sur téléphone pour garder des
+   champs assez larges */
+@media (max-width: 575.98px) {
+  .login-main { padding: 24px 16px; }
+  .login-frame { padding: 28px 20px 24px; border-radius: 24px; }
+  .login-card { padding: 24px 18px 20px; }
+}
 
 /* Champ « OutlineInputBorder » arrondi à 15px avec icône préfixe. */
 .login-field { position: relative; }

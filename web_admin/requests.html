@@ -9,6 +9,11 @@
   <link href="css/style.css" rel="stylesheet">
 </head>
 <body class="gated">
+  <!-- Admin déjà vérifié dans cet onglet (js/guard.js) : la page s'affiche
+       sans attendre Firebase, la vérification se poursuit en arrière-plan -->
+  <script>
+    try { if (sessionStorage.getItem('dermaly-admin')) document.body.classList.remove('gated'); } catch (e) {}
+  </script>
 
   <div class="app-loader">
     <div class="spinner-border text-brand" role="status"><span class="visually-hidden">Loading…</span></div>
@@ -18,7 +23,7 @@
     <!-- Barre latérale -->
     <aside class="sidebar d-none d-lg-flex flex-column p-3">
       <div class="d-flex align-items-center gap-2 px-2 py-3 mb-2">
-        <i class="bi bi-heart-pulse-fill fs-4 text-brand"></i>
+        <img src="img/logo.png" alt="" class="brand-logo">
         <span class="fw-bold">Dermaly Admin</span>
       </div>
       <nav class="nav flex-column flex-grow-1">
@@ -49,7 +54,7 @@
     <div class="main-area">
       <!-- En-tête mobile -->
       <header class="d-lg-none bg-white border-bottom px-3 py-2 d-flex align-items-center justify-content-between">
-        <span class="fw-bold"><i class="bi bi-heart-pulse-fill text-brand me-2"></i>Dermaly Admin</span>
+        <span class="fw-bold d-flex align-items-center"><img src="img/logo.png" alt="" class="brand-logo brand-logo-sm me-2">Dermaly Admin</span>
         <div>
           <button class="btn btn-sm btn-link text-decoration-none text-secondary" data-account aria-label="Account">
             <i class="bi bi-person-gear"></i>

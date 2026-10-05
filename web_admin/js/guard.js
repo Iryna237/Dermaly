@@ -57,7 +57,30 @@ export function requireAdmin() {
   });
 }
 
+// Admin déjà vérifié dans cet onglet : son nom, gardé pour la session.
+// Le script en tête de chaque page lit la même clé pour révéler la page sans
+// attendre Firebase ; la vérification ci-dessus continue en arrière-plan et
+// renvoie au login si la session n'est plus valide.
+const VERIFIED_KEY = 'dermaly-admin';
+
+function rememberAdmin(name) {
+  try { sessionStorage.setItem(VERIFIED_KEY, name); } catch { /* stockage indisponible */ }
+}
+
+function forgetAdmin() {
+  try { sessionStorage.removeItem(VERIFIED_KEY); } catch { /* stockage indisponible */ }
+}
+
+function rememberedAdmin() {
+  try { return sessionStorage.getItem(VERIFIED_KEY); } catch { return null; }
+}
+
+// Nom affiché tout de suite, sans le « Admin » provisoire
+const remembered = rememberedAdmin();
+if (remembered) paintName(remembered);
+
 function redirectToLogin(reason) {
+  forgetAdmin();
   const query = reason ? `?reason=${reason}` : '';
   window.location.replace(`index.html${query}`);
 }
@@ -65,6 +88,11 @@ function redirectToLogin(reason) {
 /** Remplit l'en-tête (nom + initiale) si les éléments existent. */
 function paintIdentity(user, profile) {
   const name = profile.fullName || user.email || 'Admin';
+  rememberAdmin(name);
+  paintName(name);
+}
+
+function paintName(name) {
   const nameEl = document.querySelector('[data-admin-name]');
   const initialEl = document.querySelector('[data-admin-initial]');
   if (nameEl) nameEl.textContent = name;
@@ -76,6 +104,7 @@ export function wireLogout(selector = '[data-logout]') {
   document.querySelectorAll(selector).forEach((btn) => {
     btn.addEventListener('click', async (event) => {
       event.preventDefault();
+      forgetAdmin();
       await signOut(auth);
       window.location.replace('index.html');
     });
