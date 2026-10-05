@@ -1,0 +1,253 @@
+rules_version = '2';
+
+// Règles Firestore de Dermaly : application mobile et interface web_admin.
+//
+// Déploiement : firebase deploy --only firestore:rules
+// Ce fichier remplace toutes les règles du projet : chaque collection lue ou
+// écrite par l'app doit y figurer, sinon elle est refusée.
+//
+// Abonnement : sans backend, l'app vérifie elle-même le paiement auprès de
+// Notch Pay. Ces règles ne peuvent donc pas prouver qu'un paiement a eu lieu ;
+// elles garantissent que :
+//  - seul le patient touche à son abonnement, jamais un autre utilisateur ;
+//  - chaque prolongation est d'un mois au plus et consomme un paiement
+//    enregistré, qui ne compte qu'une fois ;
+//  - l'échéance est vérifiée à l'heure du serveur : demander une consultation
+//    ou écrire au dermatologue est refusé quand elle est passée, même si
+//    l'horloge du téléphone a été modifiée.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- Identité ----------
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function userPath(uid) {
+      return /databases/$(database)/documents/users/$(uid);
+    }
+
+    function myProfile() {
+      return get(userPath(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return signedIn() && exists(userPath(request.auth.uid))
+        && myProfile().get('role', '') == 'admin';
+    }
+
+    function isVerifiedDermatologist(uid) {
+      let profile = get(userPath(uid)).data;
+      return profile.get('role', '') == 'dermatologist'
+        && profile.get('status', '') == 'accepted';
+    }
+
+    // ---------- Consultations ----------
+
+    // Identifiant déterministe : patient, puis dermatologue (Consultation.idFor)
+    function consultationPath(patientId, dermatologistId) {
+      return /databases/$(database)/documents/consultations/$(patientId + '_' + dermatologistId);
+    }
+
+    // Le dermatologue connecté a reçu une demande de ce patient, quel que soit son état
+    function followsPatient(patientId) {
+      return signedIn() && exists(consultationPath(patientId, request.auth.uid));
+    }
+
+    function acceptedConsultation(patientId, dermatologistId) {
+      let path = consultationPath(patientId, dermatologistId);
+      return exists(path) && get(path).data.status == 'accepted';
+    }
+
+    // ---------- Abonnement ----------
+
+    // Durée d'un mois d'abonnement (Subscription.period) et marge laissée à
+    // l'horloge du téléphone, qui calcule l'échéance, en millisecondes
+    function period() {
+      return 30 * 24 * 60 * 60 * 1000;
+    }
+
+    function clockSlack() {
+      return 24 * 60 * 60 * 1000;
+    }
+
+    function subscribed(uid) {
+      let subscription = get(userPath(uid)).data.get('subscription', null);
+      return subscription != null
+        && subscription.get('expiresAt', 0) > request.time.toMillis();
+    }
+
+    // Prolongation de l'abonnement de [uid] par l'écriture en cours : un mois
+    // au plus depuis l'échéance actuelle (ou maintenant si elle est passée),
+    // jamais un recul, et liée à un paiement qui passe de « pending » à
+    // « complete » dans la même transaction.
+    function validRenewal(uid) {
+      let next = request.resource.data.subscription;
+      let previous = resource.data.get('subscription', null);
+      let now = request.time.toMillis();
+      let previousExpiry = previous == null ? 0 : previous.get('expiresAt', 0);
+      let start = previousExpiry > now ? previousExpiry : now;
+      let payment = /databases/$(database)/documents/users/$(uid)/payments/$(next.payment);
+
+      return next.keys().hasOnly(['expiresAt', 'payment'])
+        && next.expiresAt is int
+        && next.payment is string
+        && next.expiresAt > previousExpiry
+        && next.expiresAt <= start + period() + clockSlack()
+        && get(payment).data.status == 'pending'
+        && getAfter(payment).data.status == 'complete';
+    }
+
+    // ---------- Profils ----------
+
+    match /users/{uid} {
+      // Chacun lit son profil ; les dermatologues validés sont visibles de
+      // tous les connectés ; un dermatologue lit le profil des patients qui
+      // l'ont sollicité ; l'admin lit tout.
+      allow read: if isSelf(uid)
+        || isAdmin()
+        || followsPatient(uid)
+        || (signedIn()
+          && resource.data.get('role', '') == 'dermatologist'
+          && resource.data.get('status', '') == 'accepted');
+
+      // Inscription : patient, ou dermatologue en attente de validation.
+      // Un compte admin se crée depuis la console Firebase, jamais depuis l'app.
+      allow create: if isSelf(uid)
+        && !('subscription' in request.resource.data)
+        && (
+          (request.resource.data.role == 'client'
+            && !('status' in request.resource.data))
+          || (request.resource.data.role == 'dermatologist'
+            && request.resource.data.status == 'pending')
+        );
+
+      // Le titulaire modifie son profil, sauf son rôle et son statut de
+      // validation ; l'abonnement ne change que par une prolongation valide.
+      allow update: if isSelf(uid)
+        && !request.resource.data.diff(resource.data).affectedKeys()
+          .hasAny(['uid', 'role', 'status'])
+        && (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['subscription'])
+          || validRenewal(uid)
+        );
+
+      // L'admin valide ou refuse les dermatologues, rien d'autre
+      allow update: if isAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+        && request.resource.data.status in ['pending', 'accepted', 'rejected'];
+
+      allow delete: if isAdmin();
+
+      // Paiements de l'abonnement (SubscriptionService)
+      match /payments/{reference} {
+        allow read: if isSelf(uid) || isAdmin();
+
+        // Enregistré en attente avant le débit, au prix de l'abonnement
+        allow create: if isSelf(uid)
+          && request.resource.data.status == 'pending'
+          && request.resource.data.amount == 1000
+          && request.resource.data.currency == 'XAF';
+
+        // Issue définitive, une seule fois : un paiement réglé ne bouge plus
+        allow update: if isSelf(uid)
+          && resource.data.status == 'pending'
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['status', 'settledAt'])
+          && request.resource.data.status in
+            ['complete', 'failed', 'canceled', 'expired', 'invalid'];
+
+        allow delete: if false;
+      }
+
+      // Données personnelles : chat IA, notifications, routine, analyses.
+      // Le dermatologue sollicité lit les analyses de son patient.
+      match /{subcollection}/{docId} {
+        allow read: if isSelf(uid)
+          || isAdmin()
+          || (subcollection in ['skinScans', 'analyses'] && followsPatient(uid));
+
+        allow write: if isSelf(uid) && subcollection != 'payments';
+      }
+    }
+
+    // ---------- Consultations ----------
+
+    match /consultations/{consultationId} {
+      allow read: if signedIn()
+        && (resource.data.patientId == request.auth.uid
+          || resource.data.dermatologistId == request.auth.uid
+          || isAdmin());
+
+      // Demande (ou nouvelle demande après un refus) : réservée aux abonnés,
+      // vers un dermatologue validé, toujours en attente
+      allow create, update: if signedIn()
+        && request.resource.data.patientId == request.auth.uid
+        && consultationId == request.auth.uid + '_' + request.resource.data.dermatologistId
+        && request.resource.data.status == 'pending'
+        && (resource == null || resource.data.status != 'accepted')
+        && subscribed(request.auth.uid)
+        && isVerifiedDermatologist(request.resource.data.dermatologistId);
+
+      // Réponse du dermatologue
+      allow update: if signedIn()
+        && resource.data.dermatologistId == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['status', 'respondedAt'])
+        && request.resource.data.status in ['accepted', 'declined'];
+
+      allow delete: if false;
+    }
+
+    // ---------- Chats patient / dermatologue ----------
+
+    // Identifiant : les deux uid triés, séparés par « _ » (ChatActivity.chatIdFor)
+    match /chats/{chatId} {
+      function members() {
+        return chatId.split('_');
+      }
+
+      function inChat() {
+        return signedIn() && members().size() == 2 && request.auth.uid in members();
+      }
+
+      function peer() {
+        return members()[0] == request.auth.uid ? members()[1] : members()[0];
+      }
+
+      // Écrire suppose une consultation acceptée et un patient abonné,
+      // que l'auteur soit le patient ou le dermatologue
+      function open() {
+        return (acceptedConsultation(request.auth.uid, peer()) && subscribed(request.auth.uid))
+          || (acceptedConsultation(peer(), request.auth.uid) && subscribed(peer()));
+      }
+
+      allow read: if inChat();
+      allow create, update: if inChat() && open();
+      allow delete: if false;
+
+      match /messages/{messageId} {
+        allow read: if inChat();
+
+        allow create: if inChat()
+          && open()
+          && request.resource.data.senderId == request.auth.uid
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0;
+
+        allow update, delete: if false;
+      }
+    }
+
+    // ---------- Cache partagé des images de produits ----------
+
+    match /productImages/{productId} {
+      allow read, write: if signedIn();
+    }
+  }
+}
