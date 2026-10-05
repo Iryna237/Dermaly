@@ -24,9 +24,12 @@ class SubscriptionService {
   static CollectionReference<Map<String, dynamic>>? _payments() =>
       SkinAnalysisStorage.userDoc()?.collection('payments');
 
-  /// Abonnement du patient connecté, null s'il n'en a jamais pris
-  static Stream<Subscription?> watch() {
-    final doc = SkinAnalysisStorage.userDoc();
+  /// Abonnement du patient connecté, ou du patient [uid] côté dermatologue.
+  /// Null s'il n'en a jamais pris.
+  static Stream<Subscription?> watch([String? uid]) {
+    final doc = uid == null
+        ? SkinAnalysisStorage.userDoc()
+        : FirebaseFirestore.instance.collection('users').doc(uid);
     if (doc == null) return Stream.value(null);
 
     return doc.snapshots().map((snapshot) => Subscription.fromMap(snapshot.data()?[_field]));

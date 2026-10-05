@@ -5,11 +5,13 @@ import 'package:intl/intl.dart';
 import 'app_colors.dart';
 import 'models/chat_message.dart';
 import 'models/consultation.dart';
+import 'models/subscription.dart';
 import 'services/chat_activity.dart';
 import 'services/chat_service.dart';
 import 'services/consultation_service.dart';
 import 'services/message_notifier.dart';
 import 'services/gemini_service.dart';
+import 'services/subscription_service.dart';
 import 'unread_badge.dart';
 import 'user_avatar.dart';
 
@@ -238,6 +240,10 @@ class _DermaDetailedChatPageState extends State<DermaDetailedChatPage> {
   late final Stream<List<ChatMessage>> _messages =
       widget.isAi ? _chatService.getMessages() : _getPeerMessages();
 
+  /// La discussion suit l'abonnement du patient : expiré, personne n'écrit
+  late final Stream<Subscription?> _patientSubscription =
+      widget.isAi ? Stream.value(null) : SubscriptionService.watch(widget.patientId);
+
   @override
   void initState() {
     super.initState();
@@ -310,7 +316,45 @@ class _DermaDetailedChatPageState extends State<DermaDetailedChatPage> {
               padding: EdgeInsets.all(8.0),
               child: Text('AI is thinking...', style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey)),
             ),
-          _buildInput(),
+          if (widget.isAi)
+            _buildInput()
+          else
+            StreamBuilder<Subscription?>(
+              stream: _patientSubscription,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const SizedBox.shrink();
+                }
+                return Subscription.activeIn(snapshot.data)
+                    ? _buildInput()
+                    : _buildSubscriptionRequired(snapshot.data);
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Remplace la saisie tant que le patient n'est pas abonné : l'historique
+  /// et son analyse restent consultables
+  Widget _buildSubscriptionRequired(Subscription? subscription) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      color: Colors.white,
+      child: Row(
+        children: [
+          const Icon(Icons.lock_outline_rounded, color: AppColors.terracotta),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              subscription == null
+                  ? '${widget.patientName} has no active subscription. '
+                      'You can reply once they subscribe.'
+                  : "${widget.patientName}'s subscription has expired. "
+                      'You can reply again once they renew it.',
+              style: const TextStyle(fontSize: 13, color: AppColors.darkPurple, height: 1.3),
+            ),
+          ),
         ],
       ),
     );
