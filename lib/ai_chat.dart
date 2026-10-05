@@ -6,11 +6,14 @@ import 'app_colors.dart';
 import 'models/chat_message.dart';
 import 'services/chat_service.dart';
 import 'models/consultation.dart';
+import 'models/subscription.dart';
 import 'request_consultation.dart';
 import 'services/chat_activity.dart';
 import 'services/consultation_service.dart';
 import 'services/gemini_service.dart';
 import 'services/message_notifier.dart';
+import 'services/subscription_service.dart';
+import 'subscription_page.dart';
 import 'unread_badge.dart';
 import 'user_avatar.dart';
 
@@ -27,8 +30,13 @@ class _ClientChatListPageState extends State<ClientChatListPage> {
       ConsultationService.watchForPatient();
   late final Stream<List<ChatSummary>> _chats =
       ChatActivity.watch(asDermatologist: false);
+  late final Stream<Subscription?> _subscription = SubscriptionService.watch();
 
-  void _openRequestPage() {
+  /// Demander une consultation est réservé aux abonnés : les autres passent
+  /// d'abord par le paiement.
+  Future<void> _openRequestPage() async {
+    if (!await ensureSubscribed(context) || !mounted) return;
+
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const RequestConsultationPage()),
@@ -81,6 +89,13 @@ class _ClientChatListPageState extends State<ClientChatListPage> {
                   const Padding(
                     padding: EdgeInsets.symmetric(horizontal: 24, vertical: 10),
                     child: Divider(),
+                  ),
+                  StreamBuilder<Subscription?>(
+                    stream: _subscription,
+                    builder: (context, subscription) => subscription.connectionState ==
+                            ConnectionState.waiting
+                        ? const SizedBox.shrink()
+                        : SubscriptionBanner(subscription: subscription.data),
                   ),
                   const Padding(
                     padding: EdgeInsets.symmetric(horizontal: 24, vertical: 10),
@@ -331,6 +346,10 @@ class _DetailedChatPageState extends State<DetailedChatPage> {
       ? ''
       : ChatActivity.chatIdFor(_myId, widget.peerId!);
 
+  /// Écrire au dermatologue demande un abonnement actif ; l'IA reste libre
+  late final Stream<Subscription?> _subscription =
+      widget.isAi ? Stream.value(null) : SubscriptionService.watch();
+
   @override
   void initState() {
     super.initState();
@@ -399,7 +418,56 @@ class _DetailedChatPageState extends State<DetailedChatPage> {
               padding: EdgeInsets.all(8.0),
               child: Text('Dermaly AI is typing...', style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey)),
             ),
-          _buildMessageInput(),
+          if (widget.isAi)
+            _buildMessageInput()
+          else
+            StreamBuilder<Subscription?>(
+              stream: _subscription,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const SizedBox.shrink();
+                }
+                return Subscription.activeIn(snapshot.data)
+                    ? _buildMessageInput()
+                    : _buildSubscriptionRequired(snapshot.data);
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Remplace la saisie quand l'abonnement manque : l'historique reste lisible
+  Widget _buildSubscriptionRequired(Subscription? subscription) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: const BoxDecoration(color: Colors.white, border: Border(top: BorderSide(color: AppColors.softGrey))),
+      child: Row(
+        children: [
+          const Icon(Icons.lock_outline_rounded, color: AppColors.terracotta),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              subscription == null
+                  ? 'Subscribe for ${Subscription.price} FCFA/month to chat with your dermatologist.'
+                  : 'Your subscription has expired. Renew it to keep chatting.',
+              style: const TextStyle(fontSize: 13, color: AppColors.darkPurple, height: 1.3),
+            ),
+          ),
+          const SizedBox(width: 10),
+          ElevatedButton(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const SubscriptionPage()),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryPurple,
+              foregroundColor: AppColors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            ),
+            child: Text(subscription == null ? 'Subscribe' : 'Renew'),
+          ),
         ],
       ),
     );
