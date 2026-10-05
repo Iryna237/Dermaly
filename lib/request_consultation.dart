@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'app_colors.dart';
 import 'models/consultation.dart';
 import 'services/consultation_service.dart';
+import 'subscription_page.dart';
 import 'user_avatar.dart';
 
 /// Choix du dermatologue à qui envoyer une demande de consultation.
@@ -33,6 +34,8 @@ class _RequestConsultationPageState extends State<RequestConsultationPage> {
 
   Future<void> _request(String dermatologistId, String dermatologistName) async {
     if (_sendingTo != null) return;
+    // L'abonnement a pu expirer depuis l'ouverture de la page
+    if (!await ensureSubscribed(context) || !mounted) return;
     setState(() => _sendingTo = dermatologistId);
 
     try {
