@@ -139,7 +139,15 @@ class SubscriptionService {
       final current = Subscription.fromMap(profile.data()?[_field]);
       final renewed = Subscription(expiresAt: Subscription.renewedExpiry(current, now));
 
-      transaction.set(userDoc, {_field: renewed.toJson()}, SetOptions(merge: true));
+      // La référence désigne le paiement consommé : les règles Firestore
+      // n'acceptent la prolongation que s'il passe à « complete » ici même
+      transaction.set(
+        userDoc,
+        {
+          _field: {...renewed.toJson(), 'payment': payment.reference},
+        },
+        SetOptions(merge: true),
+      );
       transaction.set(
         paymentDoc,
         {'status': 'complete', 'settledAt': now.millisecondsSinceEpoch},
