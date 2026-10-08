@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ziskin/models/subscription.dart';
 import 'package:ziskin/services/notchpay_service.dart';
+import 'package:ziskin/services/subscription_service.dart';
 
 void main() {
   group('Subscription', () {
@@ -60,7 +61,116 @@ void main() {
     });
   });
 
+  group('NotchPayService.operatorOf', () {
+    test('recognises MTN and Orange prefixes', () {
+      expect(NotchPayService.operatorOf('+237670000000'), MobileMoneyChannel.mtn);
+      expect(NotchPayService.operatorOf('+237680000000'), MobileMoneyChannel.mtn);
+      expect(NotchPayService.operatorOf('+237650000000'), MobileMoneyChannel.mtn);
+      expect(NotchPayService.operatorOf('+237654000000'), MobileMoneyChannel.mtn);
+      expect(NotchPayService.operatorOf('+237690000000'), MobileMoneyChannel.orange);
+      expect(NotchPayService.operatorOf('+237655000000'), MobileMoneyChannel.orange);
+      expect(NotchPayService.operatorOf('+237659000000'), MobileMoneyChannel.orange);
+    });
+
+    test('other prefixes have no Mobile Money operator', () {
+      expect(NotchPayService.operatorOf('+237600000000'), isNull);
+      expect(NotchPayService.operatorOf('+237612345678'), isNull);
+      expect(NotchPayService.operatorOf('+237660000000'), isNull);
+      expect(NotchPayService.operatorOf('670000000'), isNull);
+    });
+  });
+
+  group('NotchPayService.phoneError', () {
+    test('accepts a number of the chosen operator', () {
+      expect(NotchPayService.phoneError('6 70 00 00 00', MobileMoneyChannel.mtn), isNull);
+      expect(NotchPayService.phoneError('+237 690 000 000', MobileMoneyChannel.orange), isNull);
+    });
+
+    test('rejects malformed numbers before any request', () {
+      expect(NotchPayService.phoneError('', MobileMoneyChannel.mtn), isNotNull);
+      expect(NotchPayService.phoneError('67000000', MobileMoneyChannel.mtn), isNotNull);
+      expect(NotchPayService.phoneError('222000000', MobileMoneyChannel.mtn), isNotNull);
+    });
+
+    test('rejects numbers no Mobile Money operator serves', () {
+      expect(NotchPayService.phoneError('612345678', MobileMoneyChannel.mtn), contains('not an MTN or Orange'));
+      expect(NotchPayService.phoneError('660000000', MobileMoneyChannel.orange), contains('not an MTN or Orange'));
+    });
+
+    test('rejects a number of the other operator', () {
+      expect(NotchPayService.phoneError('690000000', MobileMoneyChannel.mtn), contains('Orange Money number'));
+      expect(NotchPayService.phoneError('670000000', MobileMoneyChannel.orange), contains('MTN Mobile Money number'));
+    });
+  });
+
+  group('SubscriptionService.rejectionReason', () {
+    NotchPayment paid({
+      String status = 'complete',
+      num amount = 1000,
+      String currency = 'XAF',
+      String merchant = 'dermaly-uid-1',
+      bool sandbox = false,
+    }) =>
+        NotchPayment(
+          reference: 'trx.1',
+          status: status,
+          amount: amount,
+          currency: currency,
+          merchantReference: merchant,
+          sandbox: sandbox,
+        );
+
+    const pending = {'status': 'pending', 'merchantReference': 'dermaly-uid-1'};
+
+    test('a complete transaction matching the recorded payment is accepted', () {
+      expect(SubscriptionService.rejectionReason(paid(), pending, testKey: false), isNull);
+    });
+
+    test('a transaction that is not complete is refused', () {
+      expect(SubscriptionService.rejectionReason(paid(status: 'pending'), pending, testKey: false), isNotNull);
+      expect(SubscriptionService.rejectionReason(paid(status: 'failed'), pending, testKey: false), isNotNull);
+    });
+
+    test('a payment the app did not record, or already settled, is refused', () {
+      expect(SubscriptionService.rejectionReason(paid(), null, testKey: false), isNotNull);
+      expect(
+        SubscriptionService.rejectionReason(paid(), {...pending, 'status': 'complete'}, testKey: false),
+        isNotNull,
+      );
+    });
+
+    test('another transaction, or one recorded without its reference, is refused', () {
+      expect(SubscriptionService.rejectionReason(paid(merchant: 'dermaly-uid-2'), pending, testKey: false), isNotNull);
+      expect(SubscriptionService.rejectionReason(paid(), {'status': 'pending'}, testKey: false), isNotNull);
+    });
+
+    test('a different amount or currency is refused', () {
+      expect(SubscriptionService.rejectionReason(paid(amount: 100), pending, testKey: false), isNotNull);
+      expect(SubscriptionService.rejectionReason(paid(amount: 5000), pending, testKey: false), isNotNull);
+      expect(SubscriptionService.rejectionReason(paid(currency: 'EUR'), pending, testKey: false), isNotNull);
+    });
+
+    test('a sandbox transaction only counts with a test key', () {
+      expect(SubscriptionService.rejectionReason(paid(sandbox: true), pending, testKey: true), isNull);
+      expect(SubscriptionService.rejectionReason(paid(sandbox: true), pending, testKey: false), isNotNull);
+    });
+  });
+
   group('NotchPayment', () {
+    test('reads the merchant reference and the sandbox flag', () {
+      final payment = NotchPayment.fromResponse({
+        'transaction': {
+          'reference': 'trx.test_1',
+          'merchant_reference': 'dermaly-uid-1',
+          'sandbox': true,
+          'status': 'complete',
+        },
+      })!;
+
+      expect(payment.merchantReference, 'dermaly-uid-1');
+      expect(payment.sandbox, isTrue);
+    });
+
     test('reads the transaction of a response', () {
       final payment = NotchPayment.fromResponse({
         'code': 202,

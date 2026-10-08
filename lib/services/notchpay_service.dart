@@ -33,11 +33,20 @@ class NotchPayment {
   final num amount;
   final String currency;
 
+  /// Référence choisie par Dermaly à la création : relie la transaction au
+  /// paiement enregistré dans Firestore
+  final String merchantReference;
+
+  /// Transaction simulée (clé de test) : aucun argent n'a circulé
+  final bool sandbox;
+
   const NotchPayment({
     required this.reference,
     required this.status,
     required this.amount,
     required this.currency,
+    this.merchantReference = '',
+    this.sandbox = false,
   });
 
   bool get isComplete => status == 'complete';
@@ -61,6 +70,8 @@ class NotchPayment {
       status: (transaction['status'] as Object?)?.toString().toLowerCase() ?? 'pending',
       amount: amount is num ? amount : num.tryParse('$amount') ?? 0,
       currency: (transaction['currency'] as Object?)?.toString().toUpperCase() ?? '',
+      merchantReference: (transaction['merchant_reference'] as Object?)?.toString() ?? '',
+      sandbox: transaction['sandbox'] == true,
     );
   }
 }
@@ -84,6 +95,9 @@ class NotchPayService {
     return key;
   }
 
+  /// Clé de test : les transactions sont simulées par Notch Pay
+  static bool get isTestKey => _publicKey.startsWith('pk_test');
+
   /// Numéro camerounais au format attendu par Notch Pay (+237 suivi de 9 chiffres),
   /// ou null s'il n'en est pas un. Espaces, tirets et indicatif sont tolérés.
   static String? normalizeCameroonPhone(String input) {
@@ -94,6 +108,41 @@ class NotchPayService {
     // Les numéros mobiles camerounais ont 9 chiffres et commencent par 6
     if (digits.length != 9 || !digits.startsWith('6')) return null;
     return '+237$digits';
+  }
+
+  /// Opérateur Mobile Money d'un numéro normalisé, d'après son préfixe :
+  /// MTN 67, 68 et 650 à 654 ; Orange 69 et 655 à 659. Null pour les autres
+  /// numéros (Nexttel, Camtel, préfixes non attribués).
+  static MobileMoneyChannel? operatorOf(String phone) {
+    if (!phone.startsWith('+237') || phone.length != 13) return null;
+    final digits = phone.substring(4);
+    final third = int.parse(digits[2]);
+
+    if (digits.startsWith('67') || digits.startsWith('68')) return MobileMoneyChannel.mtn;
+    if (digits.startsWith('69')) return MobileMoneyChannel.orange;
+    if (digits.startsWith('65')) {
+      return third <= 4 ? MobileMoneyChannel.mtn : MobileMoneyChannel.orange;
+    }
+    return null;
+  }
+
+  /// Raison de refuser [input] pour un paiement par [channel], ou null si le
+  /// numéro est un numéro Mobile Money de cet opérateur. Vérifié avant tout
+  /// appel à Notch Pay.
+  static String? phoneError(String input, MobileMoneyChannel channel) {
+    final phone = normalizeCameroonPhone(input);
+    if (phone == null) {
+      return 'Enter a valid Cameroonian mobile number: 9 digits starting with 6, e.g. 6 70 00 00 00.';
+    }
+
+    final operator = operatorOf(phone);
+    if (operator == null) {
+      return 'This number is not an MTN or Orange Mobile Money number.';
+    }
+    if (operator != channel) {
+      return 'This is an ${operator.label} number. Choose ${operator.label} or enter a ${channel.label} number.';
+    }
+    return null;
   }
 
   /// Crée le paiement chez Notch Pay. Rien n'est encore débité.
