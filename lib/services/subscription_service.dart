@@ -45,6 +45,9 @@ class SubscriptionService {
 
   /// Crée le paiement d'un mois et l'envoie sur le téléphone du patient.
   /// Retourne la référence Notch Pay à suivre avec [waitForResult].
+  ///
+  /// Le numéro est vérifié avant tout appel à Notch Pay : un numéro invalide
+  /// ou d'un autre opérateur ne crée aucune transaction.
   static Future<String> startPayment({
     required MobileMoneyChannel channel,
     required String phone,
@@ -55,84 +58,133 @@ class SubscriptionService {
       throw Exception('Please sign in to subscribe.');
     }
 
+    final phoneError = NotchPayService.phoneError(phone, channel);
+    if (phoneError != null) throw Exception(phoneError);
+    final normalizedPhone = NotchPayService.normalizeCameroonPhone(phone)!;
+
+    final merchantReference = 'dermaly-${user.uid}-${DateTime.now().millisecondsSinceEpoch}';
     final payment = await NotchPayService.initialize(
       amount: Subscription.price,
       currency: Subscription.currency,
-      phone: phone,
+      phone: normalizedPhone,
       email: user.email,
       name: user.displayName,
-      reference: 'dermaly-${user.uid}-${DateTime.now().millisecondsSinceEpoch}',
+      reference: merchantReference,
       description: 'Dermaly - 1 month of dermatologist access',
     );
 
     // Gardé avant le débit : si l'app se ferme pendant la confirmation, le
-    // paiement sera retrouvé et vérifié à la prochaine ouverture.
-    await SkinAnalysisStorage.writeWithTimeout(payments.doc(payment.reference).set({
+    // paiement sera retrouvé et vérifié à la prochaine ouverture. La référence
+    // marchande permettra de vérifier que la transaction est bien celle-ci.
+    final paymentDoc = payments.doc(payment.reference);
+    await SkinAnalysisStorage.writeWithTimeout(paymentDoc.set({
       'status': 'pending',
       'amount': Subscription.price,
       'currency': Subscription.currency,
       'channel': channel.code,
+      'merchantReference': merchantReference,
       'createdAt': DateTime.now().millisecondsSinceEpoch,
     }));
 
-    await NotchPayService.charge(reference: payment.reference, channel: channel, phone: phone);
+    try {
+      await NotchPayService.charge(
+        reference: payment.reference,
+        channel: channel,
+        phone: normalizedPhone,
+      );
+    } catch (_) {
+      // Demande refusée par Notch Pay : ce paiement ne pourra jamais aboutir
+      await SkinAnalysisStorage.writeWithTimeout(paymentDoc.update({
+        'status': 'failed',
+        'settledAt': DateTime.now().millisecondsSinceEpoch,
+      }));
+      rethrow;
+    }
     return payment.reference;
   }
 
   /// Suit le paiement jusqu'à son issue, ou jusqu'à [confirmationTimeout].
-  /// Un paiement réussi prolonge l'abonnement avant d'être retourné.
-  static Future<NotchPayment?> waitForResult(String reference) async {
+  /// L'abonnement n'est prolongé que si Notch Pay confirme le paiement et que
+  /// la transaction correspond à celle enregistrée ([settle]).
+  static Future<PaymentOutcome> waitForResult(String reference) async {
     final deadline = DateTime.now().add(confirmationTimeout);
-    NotchPayment? last;
 
     while (DateTime.now().isBefore(deadline)) {
       await Future<void>.delayed(_pollInterval);
 
+      final NotchPayment payment;
       try {
-        last = await NotchPayService.retrieve(reference);
+        payment = await NotchPayService.retrieve(reference);
       } on NotchPayException catch (e) {
         // Coupure réseau passagère : le paiement continue côté Notch Pay
         debugPrint('Suivi du paiement $reference : $e');
         continue;
       }
 
-      if (last.isFinal) {
-        await settle(last);
-        return last;
-      }
+      if (payment.isFinal) return settle(payment);
     }
 
-    return last;
+    return PaymentOutcome.pending;
   }
 
-  /// Enregistre l'issue d'un paiement. Un paiement réussi, du bon montant,
-  /// prolonge l'abonnement d'un mois, une seule fois.
-  static Future<void> settle(NotchPayment payment) async {
+  /// Raison de refuser une transaction que Notch Pay dit payée, ou null si
+  /// elle correspond au paiement enregistré : même référence marchande, prix
+  /// exact de l'abonnement, et vraie transaction quand la clé est réelle.
+  static String? rejectionReason(
+    NotchPayment payment,
+    Map<String, dynamic>? recorded, {
+    required bool testKey,
+  }) {
+    if (!payment.isComplete) return 'not complete';
+    if (recorded == null) return 'unknown payment';
+    if (recorded['status'] != 'pending') return 'already settled';
+
+    final expected = recorded['merchantReference'];
+    if (expected is! String || expected.isEmpty || payment.merchantReference != expected) {
+      return 'merchant reference mismatch';
+    }
+    if (payment.amount != Subscription.price || payment.currency != Subscription.currency) {
+      return 'wrong amount';
+    }
+    if (payment.sandbox && !testKey) return 'sandbox transaction with a live key';
+    return null;
+  }
+
+  /// Enregistre l'issue d'un paiement définitif. Seul un paiement vérifié par
+  /// [rejectionReason] prolonge l'abonnement d'un mois, une seule fois.
+  static Future<PaymentOutcome> settle(NotchPayment payment) async {
     final userDoc = SkinAnalysisStorage.userDoc();
     final payments = _payments();
-    if (userDoc == null || payments == null || !payment.isFinal) return;
+    if (userDoc == null || payments == null || !payment.isFinal) return PaymentOutcome.pending;
 
     final paymentDoc = payments.doc(payment.reference);
-    final valid = payment.isComplete &&
-        payment.amount >= Subscription.price &&
-        payment.currency == Subscription.currency;
+    final testKey = NotchPayService.isTestKey;
 
-    await FirebaseFirestore.instance.runTransaction((transaction) async {
+    return FirebaseFirestore.instance.runTransaction<PaymentOutcome>((transaction) async {
       final recorded = await transaction.get(paymentDoc);
-      if (recorded.data()?['status'] == 'complete') return;
+      final data = recorded.data();
+      if (data?['status'] == 'complete') return PaymentOutcome.activated;
+      // Paiement inconnu ou déjà réglé : rien à enregistrer
+      if (data == null || data['status'] != 'pending') return PaymentOutcome.rejected;
 
       final now = DateTime.now();
 
-      if (!valid) {
-        transaction.set(
-          paymentDoc,
-          {
-            'status': payment.isComplete ? 'invalid' : payment.status,
-            'settledAt': now.millisecondsSinceEpoch,
-          },
-          SetOptions(merge: true),
-        );
-        return;
+      if (!payment.isComplete) {
+        transaction.update(paymentDoc, {
+          'status': payment.status,
+          'settledAt': now.millisecondsSinceEpoch,
+        });
+        return PaymentOutcome.failedWith(payment.status);
+      }
+
+      final reason = rejectionReason(payment, data, testKey: testKey);
+      if (reason != null) {
+        debugPrint('Paiement ${payment.reference} refusé : $reason');
+        transaction.update(paymentDoc, {
+          'status': 'invalid',
+          'settledAt': now.millisecondsSinceEpoch,
+        });
+        return PaymentOutcome.rejected;
       }
 
       final profile = await transaction.get(userDoc);
@@ -148,11 +200,11 @@ class SubscriptionService {
         },
         SetOptions(merge: true),
       );
-      transaction.set(
-        paymentDoc,
-        {'status': 'complete', 'settledAt': now.millisecondsSinceEpoch},
-        SetOptions(merge: true),
-      );
+      transaction.update(paymentDoc, {
+        'status': 'complete',
+        'settledAt': now.millisecondsSinceEpoch,
+      });
+      return PaymentOutcome.activated;
     });
   }
 
@@ -167,10 +219,33 @@ class SubscriptionService {
       final pending = await payments.where('status', isEqualTo: 'pending').get();
       for (final doc in pending.docs) {
         final payment = await NotchPayService.retrieve(doc.id);
-        await settle(payment);
+        if (payment.isFinal) await settle(payment);
       }
     } catch (e) {
       debugPrint('Vérification des paiements en attente : $e');
     }
   }
+}
+
+/// Issue d'un paiement suivi jusqu'au bout
+enum PaymentOutcome {
+  /// Payé, vérifié auprès de Notch Pay : l'abonnement est prolongé
+  activated,
+
+  /// Notch Pay le dit payé, mais la transaction ne correspond pas au paiement
+  /// enregistré : l'abonnement n'est pas prolongé
+  rejected,
+
+  failed,
+  canceled,
+  expired,
+
+  /// Aucune réponse définitive dans le délai d'attente
+  pending;
+
+  static PaymentOutcome failedWith(String status) => switch (status) {
+        'canceled' => canceled,
+        'expired' => expired,
+        _ => failed,
+      };
 }

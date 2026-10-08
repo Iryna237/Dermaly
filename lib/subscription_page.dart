@@ -60,9 +60,10 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
   }
 
   Future<void> _pay() async {
-    final phone = NotchPayService.normalizeCameroonPhone(_phoneController.text);
-    if (phone == null) {
-      setState(() => _error = 'Enter a valid Cameroonian mobile number, e.g. 6 70 00 00 00.');
+    // Numéro vérifié avant tout appel à Notch Pay : format et opérateur choisi
+    final phoneError = NotchPayService.phoneError(_phoneController.text, _channel);
+    if (phoneError != null) {
+      setState(() => _error = phoneError);
       return;
     }
 
@@ -73,14 +74,18 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
     });
 
     try {
-      final reference = await SubscriptionService.startPayment(channel: _channel, phone: phone);
+      final reference = await SubscriptionService.startPayment(
+        channel: _channel,
+        phone: _phoneController.text,
+      );
       if (!mounted) return;
       setState(() => _step = _Step.waiting);
 
-      final payment = await SubscriptionService.waitForResult(reference);
+      final outcome = await SubscriptionService.waitForResult(reference);
       if (!mounted) return;
 
-      if (payment != null && payment.isComplete) {
+      // Succès seulement si l'abonnement a réellement été prolongé
+      if (outcome == PaymentOutcome.activated) {
         setState(() {
           _step = _Step.success;
           _paid = true;
@@ -90,10 +95,12 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
 
       setState(() {
         _step = _Step.form;
-        _error = switch (payment?.status) {
-          'failed' => 'The payment failed. Check your balance and try again.',
-          'canceled' => 'The payment was canceled.',
-          'expired' => 'The payment request expired. Please try again.',
+        _error = switch (outcome) {
+          PaymentOutcome.failed => 'The payment failed. Check your balance and try again.',
+          PaymentOutcome.canceled => 'The payment was canceled.',
+          PaymentOutcome.expired => 'The payment request expired. Please try again.',
+          PaymentOutcome.rejected => 'The payment could not be verified, so your subscription '
+              'was not activated. Contact support with reference $reference.',
           _ => 'No confirmation received yet. If you approve the request later, '
               'your subscription will activate the next time you open this page.',
         };
