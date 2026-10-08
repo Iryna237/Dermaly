@@ -171,6 +171,20 @@ void main() {
       expect(payment.sandbox, isTrue);
     });
 
+    test('the sandbox flag is read whether Notch Pay sends 1 or a boolean', () {
+      bool sandboxOf(Object? flag) => NotchPayment.fromResponse({
+            'transaction': {'reference': 'trx.1', 'sandbox': flag},
+          })!
+              .sandbox;
+
+      expect(sandboxOf(1), isTrue);
+      expect(sandboxOf('1'), isTrue);
+      expect(sandboxOf(true), isTrue);
+      expect(sandboxOf(0), isFalse);
+      expect(sandboxOf(false), isFalse);
+      expect(sandboxOf(null), isFalse);
+    });
+
     test('reads the transaction of a response', () {
       final payment = NotchPayment.fromResponse({
         'code': 202,

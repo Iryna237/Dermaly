@@ -71,7 +71,8 @@ class NotchPayment {
       amount: amount is num ? amount : num.tryParse('$amount') ?? 0,
       currency: (transaction['currency'] as Object?)?.toString().toUpperCase() ?? '',
       merchantReference: (transaction['merchant_reference'] as Object?)?.toString() ?? '',
-      sandbox: transaction['sandbox'] == true,
+      // Notch Pay renvoie 1 ; true et "1" sont acceptés par prudence
+      sandbox: const {'true', '1'}.contains('${transaction['sandbox']}'.toLowerCase()),
     );
   }
 }
