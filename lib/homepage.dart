@@ -40,6 +40,7 @@ class _SkinCareHomePageState extends State<SkinCareHomePage> {
 
   // Flux créé une seule fois : le recréer à chaque build relance la lecture Firestore
   late final Stream<List<AppNotification>> _notifications = NotificationLog.watch();
+  late final Stream<int?> _latestScore = SkinAnalysisStorage.watchLatestScore();
   bool _isOpeningAnalysis = false;
 
   /// Première analyse : questionnaire puis scan.
@@ -261,152 +262,7 @@ class _SkinCareHomePageState extends State<SkinCareHomePage> {
             const SizedBox(height: 30),
 
             // Skin Score Card
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [
-                    AppColors.lightPurple,
-                    AppColors.white,
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(30),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.terracotta.withAlpha(26),
-                    blurRadius: 20,
-                    offset: const Offset(0, 10),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Skin Score',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.darkPurple,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            TweenAnimationBuilder<double>(
-                              tween: Tween<double>(begin: 0, end: 78),
-                              duration: const Duration(seconds: 2),
-                              builder: (context, value, child) {
-                                return Text(
-                                  value.toInt().toString(),
-                                  style: const TextStyle(
-                                    fontSize: 40,
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColors.terracotta,
-                                  ),
-                                );
-                              },
-                            ),
-                            const Padding(
-                              padding: EdgeInsets.only(bottom: 8.0),
-                              child: Text(
-                                ' / 100',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  color: AppColors.greyText,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const Text(
-                          'Good',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.greyText,
-                          ),
-                        ),
-                        const SizedBox(height: 15),
-                        // Horizontal Progress Bar
-                        Container(
-                          height: 8,
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                            color: AppColors.softPurple,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: FractionallySizedBox(
-                            alignment: Alignment.centerLeft,
-                            widthFactor: 0.78,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                gradient: const LinearGradient(
-                                  colors: [AppColors.terracotta, AppColors.brandPink],
-                                ),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 20),
-                  // Counter Circle
-                  Container(
-                    width: 100,
-                    height: 100,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: AppColors.lightPurple, width: 8),
-                    ),
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        SizedBox(
-                          width: 100,
-                          height: 100,
-                          child: TweenAnimationBuilder<double>(
-                            tween: Tween<double>(begin: 0, end: 0.78),
-                            duration: const Duration(seconds: 2),
-                            builder: (context, value, child) {
-                              return CircularProgressIndicator(
-                                value: value,
-                                strokeWidth: 8,
-                                backgroundColor: AppColors.transparent,
-                                valueColor: const AlwaysStoppedAnimation<Color>(AppColors.terracotta),
-                              );
-                            },
-                          ),
-                        ),
-                        TweenAnimationBuilder<double>(
-                          tween: Tween<double>(begin: 0, end: 78),
-                          duration: const Duration(seconds: 2),
-                          builder: (context, value, child) {
-                            return Text(
-                              '${value.toInt()}%',
-                              style: const TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.darkPurple,
-                              ),
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            _buildSkinScoreCard(),
             const SizedBox(height: 30),
 
             // Section: Your Skin Journey
@@ -534,6 +390,156 @@ class _SkinCareHomePageState extends State<SkinCareHomePage> {
           ],
         ),
       ),
+    );
+  }
+
+  /// Score de la dernière analyse : 0 tant qu'il n'y en a pas, puis le
+  /// compteur, la barre et le cercle montent de 0 jusqu'au score.
+  Widget _buildSkinScoreCard() {
+    return StreamBuilder<int?>(
+      stream: _latestScore,
+      builder: (context, snapshot) {
+        final score = snapshot.data;
+
+        return TweenAnimationBuilder<double>(
+          tween: Tween<double>(begin: 0, end: (score ?? 0).toDouble()),
+          duration: const Duration(seconds: 2),
+          curve: Curves.easeOutCubic,
+          builder: (context, value, child) {
+            final shown = value.round();
+            final progress = value / 100;
+
+            return Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [
+                    AppColors.lightPurple,
+                    AppColors.white,
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(30),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.terracotta.withAlpha(26),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Skin Score',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.darkPurple,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              '$shown',
+                              style: const TextStyle(
+                                fontSize: 40,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.terracotta,
+                              ),
+                            ),
+                            const Padding(
+                              padding: EdgeInsets.only(bottom: 8.0),
+                              child: Text(
+                                ' / 100',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  color: AppColors.greyText,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        Text(
+                          score == null ? 'No analysis yet' : skinScoreRating(score),
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.greyText,
+                          ),
+                        ),
+                        const SizedBox(height: 15),
+                        // Horizontal Progress Bar
+                        Container(
+                          height: 8,
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: AppColors.softPurple,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: FractionallySizedBox(
+                            alignment: Alignment.centerLeft,
+                            widthFactor: progress,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [AppColors.terracotta, AppColors.brandPink],
+                                ),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 20),
+                  // Counter Circle
+                  Container(
+                    width: 100,
+                    height: 100,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: AppColors.lightPurple, width: 8),
+                    ),
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        SizedBox(
+                          width: 100,
+                          height: 100,
+                          child: CircularProgressIndicator(
+                            value: progress,
+                            strokeWidth: 8,
+                            backgroundColor: AppColors.transparent,
+                            valueColor: const AlwaysStoppedAnimation<Color>(AppColors.terracotta),
+                          ),
+                        ),
+                        Text(
+                          '$shown%',
+                          style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.darkPurple,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 

@@ -5,6 +5,14 @@ import 'products.dart';
 import 'questionnaire.dart';
 import 'services/gemini_service.dart';
 
+/// Appréciation d'un score de peau, la même partout dans l'app
+String skinScoreRating(int score) {
+  if (score >= 80) return 'Excellent';
+  if (score >= 65) return 'Good';
+  if (score >= 50) return 'Fair';
+  return 'Needs Care';
+}
+
 class SkinResultPage extends StatelessWidget {
   final String imagePath;
   final int overallScore;
@@ -58,12 +66,7 @@ class SkinResultPage extends StatelessWidget {
     return '$hour:$minute $amPm';
   }
 
-  String _getScoreRating() {
-    if (overallScore >= 80) return 'Excellent ';
-    if (overallScore >= 65) return 'Good ';
-    if (overallScore >= 50) return 'Fair ';
-    return 'Needs Care ';
-  }
+  String _getScoreRating() => '${skinScoreRating(overallScore)} ';
 
   Color _getScoreRatingColor() {
     if (overallScore >= 80) return Colors.green;
