@@ -547,7 +547,6 @@ class _RoutinePageState extends State<RoutinePage> with WidgetsBindingObserver {
             _buildBottomNavItem(0, Icons.search, 'care'),
             _buildBottomNavItem(1, Icons.add, 'routine', isCenter: true),
             _buildBottomNavItem(2, Icons.access_time, 'evolution'),
-            _buildBottomNavItem(3, Icons.calendar_today, 'daily'),
           ],
         ),
       ),
