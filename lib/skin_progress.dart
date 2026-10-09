@@ -3,14 +3,16 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
 import 'make_skin_analysis.dart';
+import 'questionnaire.dart';
 import 'services/gemini_service.dart';
 import 'services/skin_progress_storage.dart';
 import 'skin_analysis_progress.dart';
 import 'skin_scan_comparison.dart';
 
 /// Skin Progress : suivi mensuel de la peau.
-/// Chaque mois, un scan est comparé au scan précédent et au premier scan
-/// pour savoir si les produits utilisés sont efficaces.
+/// La première Skin Analysis est le point de départ ; à partir du mois
+/// suivant, chaque scan mensuel est comparé au précédent et à ce point de
+/// départ pour savoir si les produits utilisés sont efficaces.
 class SkinProgressPage extends StatefulWidget {
   const SkinProgressPage({super.key});
 
@@ -87,13 +89,26 @@ class _SkinProgressPageState extends State<SkinProgressPage> {
     );
   }
 
+  /// Sans analyse, pas de suivi : la Skin Analysis en est le point de départ
   Widget _buildEmptyState() {
     return _buildMessage(
       Icons.show_chart_rounded,
-      'Track your skin every month',
-      'Take a quick face scan once a month. Dermaly compares it with your previous scans '
-      'so you can see which skin concerns improve or get worse, and whether your products are working.',
-      action: _buildPrimaryButton("Start this month's scan", Icons.camera_alt_rounded),
+      'Start with your skin analysis',
+      'Your first skin analysis is the starting point of your progress. '
+      'From the following month, take a quick face scan once a month: Dermaly compares it '
+      'with your previous results so you can see whether your products are working.',
+      action: _buildPrimaryButton(
+        'Start my skin analysis',
+        Icons.face_retouching_natural,
+        onPressed: _startSkinAnalysis,
+      ),
+    );
+  }
+
+  void _startSkinAnalysis() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const QuestionnairePage()),
     );
   }
 
@@ -138,7 +153,7 @@ class _SkinProgressPageState extends State<SkinProgressPage> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 10, 20, 30),
       children: [
-        _buildThisMonthCard(latest),
+        _buildThisMonthCard(latest, onlyStartingPoint: history.length == 1),
         const SizedBox(height: 15),
         _buildScoreCard(history, previous, first),
         const SizedBox(height: 15),
@@ -157,10 +172,22 @@ class _SkinProgressPageState extends State<SkinProgressPage> {
     );
   }
 
-  Widget _buildThisMonthCard(SkinAnalysisResult latest) {
+  /// [onlyStartingPoint] : seule la Skin Analysis existe, aucun scan mensuel.
+  /// Le mois de l'analyse compte comme scanné : le premier scan se débloque
+  /// le mois suivant.
+  Widget _buildThisMonthCard(SkinAnalysisResult latest, {required bool onlyStartingPoint}) {
     final lastScanAt = latest.analyzedAt!;
     final scannedThisMonth =
         SkinProgressStorage.monthKey(lastScanAt) == SkinProgressStorage.monthKey(DateTime.now());
+
+    final title = onlyStartingPoint
+        ? (scannedThisMonth ? 'Your starting point is set' : 'Time for your first progress scan')
+        : (scannedThisMonth ? "This month's scan is done" : "You haven't scanned this month");
+    final details = onlyStartingPoint
+        ? 'Skin analysis on ${formatScanDate(lastScanAt)}'
+        : scannedThisMonth
+            ? 'Scanned on ${formatScanDate(lastScanAt)} at ${formatScanTime(lastScanAt)}'
+            : 'Last scan: ${formatScanDate(lastScanAt)}';
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -191,16 +218,12 @@ class _SkinProgressPageState extends State<SkinProgressPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      scannedThisMonth
-                          ? "This month's scan is done"
-                          : "You haven't scanned this month",
+                      title,
                       style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.darkPurple),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      scannedThisMonth
-                          ? 'Scanned on ${formatScanDate(lastScanAt)} at ${formatScanTime(lastScanAt)}'
-                          : 'Last scan: ${formatScanDate(lastScanAt)}',
+                      details,
                       style: const TextStyle(fontSize: 13, color: AppColors.greyText),
                     ),
                   ],
@@ -210,7 +233,7 @@ class _SkinProgressPageState extends State<SkinProgressPage> {
           ),
           const SizedBox(height: 16),
           scannedThisMonth
-              ? _buildLockedNotice(lastScanAt)
+              ? _buildLockedNotice(lastScanAt, firstScan: onlyStartingPoint)
               : _buildPrimaryButton('Scan this month', Icons.camera_alt_rounded),
         ],
       ),
@@ -219,8 +242,9 @@ class _SkinProgressPageState extends State<SkinProgressPage> {
 
   /// Un seul scan par mois : une fois le scan du mois fait, le suivant n'est
   /// possible qu'au mois suivant. Rien ne permet de relancer un scan avant.
-  Widget _buildLockedNotice(DateTime lastScanAt) {
+  Widget _buildLockedNotice(DateTime lastScanAt, {bool firstScan = false}) {
     final nextScanAt = DateTime(lastScanAt.year, lastScanAt.month + 1, 1);
+    final label = firstScan ? 'First progress scan' : 'Next scan';
 
     return Container(
       width: double.infinity,
@@ -235,7 +259,7 @@ class _SkinProgressPageState extends State<SkinProgressPage> {
           const SizedBox(width: 12),
           Expanded(
             child: Text(
-              'Next scan available on ${formatScanDate(nextScanAt)}',
+              '$label available on ${formatScanDate(nextScanAt)}',
               style: const TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
@@ -248,12 +272,12 @@ class _SkinProgressPageState extends State<SkinProgressPage> {
     );
   }
 
-  Widget _buildPrimaryButton(String label, IconData icon) {
+  Widget _buildPrimaryButton(String label, IconData icon, {VoidCallback? onPressed}) {
     return SizedBox(
       width: double.infinity,
       height: 56,
       child: ElevatedButton.icon(
-        onPressed: _startMonthlyScan,
+        onPressed: onPressed ?? _startMonthlyScan,
         icon: Icon(icon),
         label: Text(label, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
         style: ElevatedButton.styleFrom(
@@ -380,7 +404,14 @@ class _SkinProgressPageState extends State<SkinProgressPage> {
         padding: const EdgeInsets.symmetric(vertical: 8),
         child: Row(
           children: [
-            ScanPhoto(imagePath: scan.imagePath, width: 48, height: 48, radius: 12),
+            // Toucher la miniature l'ouvre en grand ; le reste de la ligne ouvre le détail
+            ScanPhoto(
+              imagePath: scan.imagePath,
+              width: 48,
+              height: 48,
+              radius: 12,
+              fullScreenTitle: formatScanMonth(scan.analyzedAt!),
+            ),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
@@ -393,7 +424,7 @@ class _SkinProgressPageState extends State<SkinProgressPage> {
                   const SizedBox(height: 2),
                   Text(
                     index == 0
-                        ? 'Starting point · ${formatShortDate(scan.analyzedAt!)}'
+                        ? 'Starting point · skin analysis · ${formatShortDate(scan.analyzedAt!)}'
                         : 'Scanned on ${formatShortDate(scan.analyzedAt!)}',
                     style: const TextStyle(fontSize: 12, color: AppColors.greyText),
                   ),

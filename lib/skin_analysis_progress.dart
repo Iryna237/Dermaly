@@ -178,6 +178,10 @@ class _SkinAnalysisProgressPageState extends State<SkinAnalysisProgressPage>
         saveFailed = true;
       }
 
+      // Première analyse : sa photo devient celle du point de départ de Skin
+      // Progress. Avant l'ajout à l'historique, qui dit si c'est la première.
+      await SkinProgressStorage.keepStartingPhoto(result);
+
       // Historique des analyses dans Firestore. Même traitement que la sauvegarde
       // locale : une écriture ratée ne doit pas faire passer une analyse réussie
       // pour une erreur

@@ -55,12 +55,16 @@ class ScanPhoto extends StatelessWidget {
   final double height;
   final double radius;
 
+  /// Titre du plein écran : avec lui, toucher la photo l'ouvre en grand
+  final String? fullScreenTitle;
+
   const ScanPhoto({
     super.key,
     required this.imagePath,
     required this.width,
     required this.height,
     this.radius = 16,
+    this.fullScreenTitle,
   });
 
   @override
@@ -72,7 +76,7 @@ class ScanPhoto extends StatelessWidget {
       child: const Icon(Icons.person, color: AppColors.primaryPurple),
     );
 
-    return ClipRRect(
+    final photo = ClipRRect(
       borderRadius: BorderRadius.circular(radius),
       child: imagePath.isEmpty
           ? placeholder
@@ -85,6 +89,79 @@ class ScanPhoto extends StatelessWidget {
               cacheWidth: (width * 3).round(),
               errorBuilder: (context, error, stackTrace) => placeholder,
             ),
+    );
+
+    final title = fullScreenTitle;
+    if (title == null || imagePath.isEmpty) return photo;
+
+    return GestureDetector(
+      onTap: () => ScanPhotoViewer.open(context, imagePath, title),
+      child: Stack(
+        children: [
+          photo,
+          // Repère d'agrandissement, sur les photos assez grandes pour le porter
+          if (width >= 80)
+            Positioned(
+              right: 8,
+              bottom: 8,
+              child: Container(
+                padding: const EdgeInsets.all(5),
+                decoration: BoxDecoration(
+                  color: Colors.black.withAlpha(110),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.fullscreen_rounded, size: 18, color: Colors.white),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Photo de scan en plein écran, à agrandir avec deux doigts
+class ScanPhotoViewer extends StatelessWidget {
+  final String imagePath;
+  final String title;
+
+  const ScanPhotoViewer({super.key, required this.imagePath, required this.title});
+
+  static void open(BuildContext context, String imagePath, String title) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (context) => ScanPhotoViewer(imagePath: imagePath, title: title),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        title: Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+        centerTitle: true,
+      ),
+      body: InteractiveViewer(
+        minScale: 1,
+        maxScale: 5,
+        child: Center(
+          child: localPhoto(
+            imagePath,
+            fit: BoxFit.contain,
+            errorBuilder: (context, error, stackTrace) => const Icon(
+              Icons.broken_image_outlined,
+              size: 64,
+              color: Colors.white54,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -322,7 +399,9 @@ class SkinScanComparisonPage extends StatelessWidget {
             ),
             const SizedBox(height: 5),
             Text(
-              'Scanned on ${formatScanDate(analyzedAt)} • ${formatScanTime(analyzedAt)}',
+              // Sans précédent, c'est le point de départ : la Skin Analysis
+              '${previousScan == null ? 'Analyzed' : 'Scanned'} on '
+              '${formatScanDate(analyzedAt)} • ${formatScanTime(analyzedAt)}',
               style: const TextStyle(fontSize: 14, color: AppColors.greyText),
             ),
             const SizedBox(height: 25),
@@ -331,8 +410,8 @@ class SkinScanComparisonPage extends StatelessWidget {
             if (previousScan == null)
               _buildInfoBanner(
                 Icons.flag_rounded,
-                'This is your first progress scan and your starting point. '
-                'Scan again next month to see how your skin evolves.',
+                'This is your starting point, from your first skin analysis. '
+                'Your monthly progress scans start the month after and are compared with it.',
               )
             else
               _buildChangesSummary(previousScan),
@@ -402,7 +481,13 @@ class SkinScanComparisonPage extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        ScanPhoto(imagePath: scan.imagePath, width: 140, height: 180, radius: 20),
+        ScanPhoto(
+          imagePath: scan.imagePath,
+          width: 140,
+          height: 180,
+          radius: 20,
+          fullScreenTitle: 'Your skin in ${formatShortMonth(scan.analyzedAt ?? DateTime.now())}',
+        ),
         const SizedBox(width: 15),
         Expanded(
           child: SizedBox(
@@ -505,11 +590,11 @@ class SkinScanComparisonPage extends StatelessWidget {
     return ProgressCard(
       icon: Icons.compare_rounded,
       iconColor: AppColors.terracotta,
-      title: 'First scan vs this scan',
+      title: 'Starting point vs this scan',
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(child: _buildPhotoColumn(firstScan, 'First scan')),
+          Expanded(child: _buildPhotoColumn(firstScan, 'Starting point')),
           const SizedBox(width: 12),
           Expanded(child: _buildPhotoColumn(scan, justScanned ? 'This month' : 'This scan')),
         ],
@@ -526,6 +611,7 @@ class SkinScanComparisonPage extends StatelessWidget {
             imagePath: item.imagePath,
             width: constraints.maxWidth,
             height: constraints.maxWidth * 1.25,
+            fullScreenTitle: item.analyzedAt == null ? label : '$label · ${formatShortDate(item.analyzedAt!)}',
           ),
           const SizedBox(height: 8),
           Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.darkPurple)),
