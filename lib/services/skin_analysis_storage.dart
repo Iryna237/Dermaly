@@ -78,6 +78,21 @@ class SkinAnalysisStorage {
     }
   }
 
+  /// Score global de la dernière analyse, null tant qu'il n'y en a pas.
+  /// Suit le profil : une nouvelle analyse met le score à jour.
+  static Stream<int?> watchLatestScore() {
+    final docRef = userDoc();
+    if (docRef == null) return Stream.value(null);
+
+    return docRef.snapshots().map((doc) {
+      final analysis = doc.data()?[_field];
+      if (analysis is! Map) return null;
+
+      final score = analysis['overallScore'];
+      return score is num ? score.toInt().clamp(0, 100) : null;
+    });
+  }
+
   /// Retourne la dernière analyse sauvegardée, ou null s'il n'y en a pas
   static Future<SkinAnalysisResult?> load() async {
     final docRef = userDoc();
