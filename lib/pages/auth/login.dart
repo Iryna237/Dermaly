@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:ziskin/admin_dash.dart';
 import 'package:ziskin/dermatologist_dashboard.dart';
+import 'package:ziskin/landing_page.dart';
 import 'package:ziskin/pages/auth/register.dart';
 import 'package:ziskin/screen_manage.dart';
 
@@ -89,6 +90,28 @@ class _LoginPageState extends State<LoginPage> {
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(builder: (context) => const PendingVerificationPage()),
+          (route) => false,
+        );
+        return;
+      }
+
+      // Un dossier rejeté n'ouvre aucun tableau de bord. AuthGate applique déjà
+      // cette règle au démarrage ; sans ce test, une connexion depuis ce
+      // formulaire la contournait et menait droit au dashboard dermatologue.
+      if (role == 'dermatologist' && status == 'rejected') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              "Your professional application was not approved. "
+              "Contact support if you think this is a mistake.",
+            ),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 5),
+          ),
+        );
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const LandingPage()),
           (route) => false,
         );
         return;
